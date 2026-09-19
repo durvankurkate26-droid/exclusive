@@ -209,26 +209,138 @@ a { color: inherit; text-decoration: none; }
 .chaos-payoff h2 { margin: 0; font-family: var(--font-display); font-size: clamp(3rem,9vw,7.5rem); font-weight: 400; letter-spacing: .01em; line-height: .9; }
 .chaos-payoff h2 span,.journey-heading h2 span,.final-cta h2 span { background: linear-gradient(90deg,var(--violet),var(--pink),var(--cyan)); background-clip: text; color: transparent; }
 
-.modules-scene { background: var(--background); }
-.modules-stage { display: grid; width: 100%; height: 100svh; grid-template-rows: auto 1fr; overflow: hidden; padding: 0 clamp(1.25rem,5vw,5rem); }
-.modules-kicker { margin: 0; padding-top: clamp(3.6rem,9vh,8.75rem); padding-bottom: 1.5vh; color: var(--muted); font-family: var(--font-mono); font-size: .6875rem; letter-spacing: .34em; }
-.module-list { display: flex; min-height: 0; flex-direction: column; justify-content: center; gap: clamp(.125rem,.8vh,.75rem); }
-.module-row { --on: 0; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: clamp(.9rem,2vw,1.4rem); padding: clamp(.4rem,1.1vh,1.1rem) 0; border-top: 1px solid rgba(255,255,255,.08); opacity: calc(.34 + var(--on) * .66); transform: translateX(calc(var(--on) * 10px)); will-change: transform, opacity; }
-.module-row:last-child { border-bottom: 1px solid rgba(255,255,255,.08); }
-.module-number { color: var(--accent); font-family: var(--font-mono); font-size: .75rem; }
-[data-accent="pink"] { --accent: var(--pink); }
-[data-accent="violet"] { --accent: var(--violet); }
-[data-accent="cyan"] { --accent: var(--cyan); }
-.module-copy h3 { margin: 0; background: linear-gradient(90deg,#fff,var(--accent)); background-size: 200%; background-position: calc(var(--on) * -100%) 0; background-clip: text; color: transparent; font-family: var(--font-display); font-size: clamp(2rem,5.2vw,5rem); font-weight: 400; line-height: .9; }
-.module-copy p { max-width: 52ch; margin: 2px 0 0; color: var(--muted); font-size: clamp(.7rem,1.5vh,.8125rem); line-height: 1.3; opacity: calc(.4 + var(--on) * .6); }
-.room-glyph { width: clamp(4.4rem,12vw,8.75rem); height: clamp(3.25rem,8vh,5.5rem); border: 1px solid color-mix(in srgb,var(--accent) 28%,transparent); border-radius: .75rem; opacity: calc(.25 + var(--on) * .75); box-shadow: 0 0 calc(var(--on) * 26px) color-mix(in srgb,var(--accent) 40%,transparent); }
-.glyph-tea { display: flex; flex-direction: column; justify-content: center; gap: 5px; padding: 9px; background: linear-gradient(180deg,#231d3d,#161226); }
-.glyph-tea i { height: 6px; width: 70%; border-radius: 4px; background: rgba(255,92,200,.5); }
-.glyph-tea i:nth-child(2) { width: 45%; align-self: flex-end; background: rgba(255,255,255,.25); }.glyph-tea i:nth-child(3){width:60%;background:rgba(255,92,200,.35)}
-.glyph-create { display:grid;place-items:center;background:repeating-linear-gradient(135deg,#231d3d 0 8px,#1a1530 8px 16px) }.glyph-create i{width:0;height:0;border-left:14px solid var(--violet);border-top:9px solid transparent;border-bottom:9px solid transparent;margin-left:4px}
-.glyph-one-day{display:flex;flex-direction:column;justify-content:center;gap:6px;padding:10px;background:linear-gradient(180deg,#152036,#0f1626)}.glyph-one-day b{color:var(--cyan);font-family:var(--font-mono);font-size:.56rem;font-weight:400}.glyph-one-day i{height:6px;width:80%;border-radius:4px;background:rgba(91,224,255,.4)}.glyph-one-day i:last-child{width:50%;background:rgba(255,255,255,.2)}
-.glyph-align,.glyph-vault{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(2,1fr);gap:3px;padding:9px;background:linear-gradient(180deg,#231d3d,#161226)}.glyph-align i{border-radius:3px;background:var(--pink)}.glyph-align i:nth-child(2),.glyph-align i:nth-child(5),.glyph-align i:nth-child(7){background:rgba(255,255,255,.15)}
-.glyph-vault{grid-template-columns:repeat(3,1fr);padding:8px;background:#161226}.glyph-vault i{border-radius:3px;background:linear-gradient(135deg,var(--violet),var(--pink))}.glyph-vault i:nth-child(even){background:repeating-linear-gradient(45deg,#2a2450 0 4px,#1e1a3a 4px 8px)}.glyph-vault i:nth-child(3){background:linear-gradient(135deg,var(--pink),var(--cyan))}.glyph-vault i:nth-child(5){background:linear-gradient(135deg,var(--cyan),var(--violet))}
+/* ---------------------------------------------------------------- ENTER THE ROOMS
+   Five-scene scroll story on one pinned stage.
+
+   LAYOUT SYSTEM. Every position in this section resolves from the variables below
+   rather than from ad-hoc coordinates, so no element can drift into the navbar, the
+   viewport edge, or the chapter band at any viewport size.
+
+     --pad-x         side gutter, shared by titles, copy and chapters
+     --safe-top      clears the fixed navbar; nothing large sits above it
+     --safe-bottom   floor gutter
+     --chapter-h     height reserved for the chapter rail, nothing else enters it
+     --title-bottom  floor for a bottom-anchored title = safe-bottom + chapter band
+     --copy-w        one measure for every supporting paragraph (never a narrow column)
+
+   Titles carry NO CSS transform: GSAP owns `transform` on [data-title], so a CSS
+   translate here would be silently overwritten. Centering is done with inset + text-align. */
+.rooms-story {
+  position: relative;
+  min-height: 100svh;
+  overflow: hidden;
+  background: var(--background);
+  --pad-x: clamp(1.5rem,5vw,5.5rem);
+  --safe-top: clamp(5rem,12vh,7.5rem);
+  --safe-bottom: clamp(2.25rem,5vh,3.25rem);
+  --chapter-h: 6.6rem;
+  --title-bottom: calc(var(--safe-bottom) + var(--chapter-h) + 1.75rem);
+  --copy-w: clamp(15rem,21vw,19.5rem);
+  --z-atmos: 0;
+  --z-field: 10;
+  --z-morph: 20;
+  --z-title: 30;
+  --z-copy: 34;
+  --z-chapters: 40;
+  --z-finale: 50;
+}
+.rooms-stage { position: relative; width: 100%; height: 100svh; overflow: hidden; }
+
+/* Local light per room: five tints crossfading by opacity only. No colour
+   interpolation, no filters, the GPU only composites. */
+.rooms-atmos { position: absolute; z-index: var(--z-atmos); inset: 0; pointer-events: none; }
+.rooms-atmos i { position: absolute; inset: 0; opacity: 0; }
+.rooms-atmos i:nth-child(1) { background: radial-gradient(58% 48% at 70% 40%,rgba(255,92,200,.2),transparent 68%),radial-gradient(40% 34% at 16% 76%,rgba(255,92,200,.09),transparent 70%); }
+.rooms-atmos i:nth-child(2) { background: radial-gradient(56% 50% at 56% 54%,rgba(107,91,255,.24),transparent 66%),radial-gradient(34% 30% at 84% 18%,rgba(150,92,230,.12),transparent 70%); }
+.rooms-atmos i:nth-child(3) { background: radial-gradient(66% 54% at 70% 48%,rgba(91,224,255,.18),transparent 70%),radial-gradient(38% 32% at 18% 30%,rgba(70,150,255,.11),transparent 72%); }
+.rooms-atmos i:nth-child(4) { background: radial-gradient(46% 42% at 50% 54%,rgba(168,92,230,.24),transparent 62%),radial-gradient(30% 26% at 50% 54%,rgba(255,92,200,.14),transparent 68%); }
+.rooms-atmos i:nth-child(5) { background: radial-gradient(64% 54% at 58% 44%,rgba(168,150,255,.2),transparent 70%),radial-gradient(42% 36% at 22% 80%,rgba(91,224,255,.11),transparent 72%); }
+
+/* Chapter rail: its own reserved band at the bottom-left. No title or copy may enter
+   it, because every bottom-anchored element is floored at --title-bottom. */
+.rooms-chapters { position: absolute; z-index: var(--z-chapters); inset: auto auto var(--safe-bottom) var(--pad-x); display: flex; height: var(--chapter-h); flex-direction: column; justify-content: flex-end; gap: .34rem; margin: 0; padding: 0; list-style: none; }
+.rooms-chapters li { display: grid; grid-template-columns: 1.6rem auto; align-items: baseline; gap: .55rem; font-family: var(--font-mono); font-size: .5875rem; letter-spacing: .24em; opacity: .22; }
+.rooms-chapters b { color: var(--pink); font-weight: 400; }
+.rooms-chapters span { color: var(--foreground); }
+
+/* ---- the one object that becomes all five things ---- */
+.rooms-morph { position: absolute; z-index: var(--z-morph); top: 50%; left: 50%; --edge: var(--pink); border: 1px solid color-mix(in srgb,var(--edge) 55%,transparent); background: linear-gradient(180deg,rgba(38,31,66,.92),rgba(20,16,38,.92)); box-shadow: 0 30px 90px rgba(4,3,10,.6),0 0 46px -12px var(--edge); }
+[data-live] .rooms-morph { will-change: transform, width, height, border-radius; }
+.rooms-morph .face { position: absolute; inset: 0; opacity: 0; }
+
+.face-tea { display: flex; flex-direction: column; justify-content: center; gap: 7px; padding: 0 14px; }
+.face-tea i { height: 7px; border-radius: 4px; background: rgba(255,92,200,.6); }
+.face-tea i:first-child { width: 68%; }
+.face-tea i:last-child { width: 42%; align-self: flex-end; background: rgba(255,255,255,.3); }
+
+.face-create { display: flex; align-items: stretch; gap: 4px; padding: 10px; }
+.face-create b { flex: 1; border-radius: 3px; background: repeating-linear-gradient(135deg,rgba(107,91,255,.32) 0 7px,rgba(30,25,58,.5) 7px 14px); }
+.face-create b:nth-child(even) { background: linear-gradient(180deg,rgba(76,62,150,.5),rgba(34,28,68,.5)); }
+
+.face-oneday { display: flex; flex-direction: column; justify-content: flex-end; gap: .3rem; padding: 16px; }
+.face-oneday em { color: var(--foreground); font-family: var(--font-display); font-size: clamp(1.5rem,3.4vw,2.6rem); font-style: normal; letter-spacing: .02em; line-height: .9; }
+.face-oneday u { color: rgba(147,226,255,.86); font-family: var(--font-mono); font-size: .5rem; letter-spacing: .14em; text-decoration: none; }
+
+.face-align { display: grid; grid-template-columns: repeat(3,1fr); grid-template-rows: repeat(3,1fr); gap: 5px; padding: 12px; }
+.face-align i { border-radius: 2px; background: rgba(255,255,255,.14); }
+.face-align i:nth-child(5) { background: linear-gradient(135deg,var(--violet),var(--pink)); }
+
+.face-vault { background: linear-gradient(135deg,rgba(168,150,255,.5),rgba(91,224,255,.3)),repeating-linear-gradient(45deg,rgba(42,36,80,.6) 0 6px,rgba(30,26,58,.6) 6px 12px); }
+
+/* ---- scenes. Each is a full-bleed layer; only the active one is visible, gated by
+        autoAlpha so an inactive scene is not merely transparent but unhittable. ---- */
+.rooms-scenes { position: absolute; z-index: var(--z-field); inset: 0; }
+.scene { position: absolute; inset: 0; }
+.scene > * { position: absolute; }
+
+/* LEVEL 1 -- the room name. Anchors only, never a transform. */
+.scene-title { z-index: var(--z-title); margin: 0; color: transparent; font-family: var(--font-display); font-weight: 400; letter-spacing: .01em; line-height: .82; background-clip: text; }
+.t-tea { left: var(--pad-x); bottom: var(--title-bottom); font-size: clamp(4.5rem,21vw,19rem); background-image: linear-gradient(180deg,#fff,var(--pink)); }
+.t-create { right: var(--pad-x); top: var(--safe-top); text-align: right; font-size: clamp(3.75rem,13vw,11.5rem); background-image: linear-gradient(180deg,#fff,var(--violet)); }
+.t-oneday { left: var(--pad-x); top: calc(var(--safe-top) + 8vh); font-size: clamp(3.25rem,11.5vw,10rem); background-image: linear-gradient(180deg,#fff,var(--cyan)); }
+.t-align { left: 0; right: 0; top: var(--safe-top); text-align: center; font-size: clamp(3.25rem,11vw,9.5rem); letter-spacing: .07em; background-image: linear-gradient(180deg,#fff,var(--pink)); }
+.t-vault { left: var(--pad-x); bottom: var(--title-bottom); font-size: clamp(3rem,9.5vw,8rem); background-image: linear-gradient(180deg,rgba(255,255,255,.92),rgba(168,150,255,.92)); }
+
+/* LEVEL 2 -- one measure for every supporting paragraph, anchored to its own scene's
+   composition rather than floating. */
+.scene-note { z-index: var(--z-copy); width: var(--copy-w); margin: 0; color: var(--muted); font-size: clamp(.75rem,1.6vh,.875rem); line-height: 1.5; text-wrap: pretty; }
+.n-tea { left: var(--pad-x); top: var(--safe-top); }
+.n-create { left: var(--pad-x); top: var(--safe-top); }
+.n-oneday { left: var(--pad-x); top: calc(var(--safe-top) + 42vh); }
+.n-align { left: 0; right: 0; bottom: var(--title-bottom); width: auto; max-width: 38ch; margin-inline: auto; text-align: center; }
+.n-vault { left: var(--pad-x); top: var(--safe-top); }
+
+/* TEA -- conversation scattered at depth. Coordinates in ModulesScene keep the whole
+   lower-left quadrant clear for the title and the chapter rail. */
+.shard { top: 50%; left: 50%; padding: .5rem .9rem; border: 1px solid rgba(255,92,200,.26); border-radius: 999px; background: rgba(32,25,58,.7); color: var(--foreground); font-size: clamp(.72rem,1.4vw,.92rem); white-space: nowrap; }
+.typing { top: 50%; left: 50%; display: flex; gap: 5px; }
+.typing b { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,92,200,.8); }
+
+/* CREATE -- a strip that runs, a playhead that sweeps, crop marks inside the safe box */
+.strip { top: 50%; left: 50%; display: flex; width: 150vw; gap: 8px; opacity: .5; transform: translate(-50%,-50%); -webkit-mask-image: linear-gradient(90deg,transparent,#000 16%,#000 84%,transparent); mask-image: linear-gradient(90deg,transparent,#000 16%,#000 84%,transparent); }
+.strip i { height: 11vh; flex: 1; border-radius: 4px; background: repeating-linear-gradient(135deg,#2c2550 0 9px,#211c40 9px 18px); }
+.strip i:nth-child(even) { background: linear-gradient(180deg,#332a63,#241e47); }
+.playhead { top: 50%; left: 50%; width: 1px; height: 30vh; background: linear-gradient(180deg,transparent,var(--violet),transparent); box-shadow: 0 0 14px 1px rgba(107,91,255,.7); transform: translate(-50%,-50%); }
+
+/* ONE DAY -- possibilities orbiting the postcard, constrained to the right field */
+.frag { top: 50%; left: 50%; padding: .3rem .78rem; border: 1px solid rgba(91,224,255,.34); border-radius: 999px; background: rgba(16,30,52,.7); color: #dff4ff; font-family: var(--font-mono); font-size: clamp(.58rem,1.1vw,.72rem); letter-spacing: .12em; white-space: nowrap; }
+
+/* ALIGN -- blocks snap to two flanking columns, bars fill beneath the plan */
+.block { top: 50%; left: 50%; width: clamp(2.75rem,5.4vw,4.5rem); height: clamp(1.5rem,3vh,2.2rem); margin: -1.5vh 0 0 -2.7vw; border-radius: 4px; background: rgba(255,255,255,.14); }
+.block:nth-child(4n) { background: linear-gradient(135deg,var(--violet),var(--pink)); }
+.bars { top: 50%; left: 50%; display: flex; width: clamp(10rem,22vw,17rem); flex-direction: column; gap: 6px; margin-top: 22vh; transform: translateX(-50%); }
+.bars i { height: 3px; border-radius: 2px; background: linear-gradient(90deg,var(--violet),var(--pink)); transform-origin: left center; }
+
+/* VAULT -- layered memory depth around the hero frame */
+.photo { top: 50%; left: 50%; width: clamp(8rem,15vw,12.5rem); height: clamp(6rem,11.5vw,9.5rem); margin: -5.5vh 0 0 -6vw; border: 1px solid rgba(255,255,255,.12); border-radius: 8px; background: linear-gradient(135deg,rgba(143,123,255,.5),rgba(199,139,255,.36)); box-shadow: 0 26px 70px rgba(4,3,10,.6); }
+.photo:nth-child(odd) { background: repeating-linear-gradient(45deg,rgba(42,36,80,.8) 0 6px,rgba(30,26,58,.8) 6px 12px); }
+.photo:nth-child(3) { background: linear-gradient(135deg,rgba(199,139,255,.5),rgba(91,224,255,.4)); }
+
+/* ---- finale ---- */
+.rooms-finale { position: absolute; z-index: var(--z-finale); inset: 0; display: grid; place-content: center; padding: var(--safe-top) var(--pad-x) var(--title-bottom); text-align: center; }
+.rooms-finale p { margin: 0; font-family: var(--font-display); font-size: clamp(2.2rem,7vw,6rem); font-weight: 400; letter-spacing: .02em; line-height: .92; }
+.rooms-finale p:first-child { color: var(--muted); }
+.rooms-finale span { background: linear-gradient(90deg,var(--violet),var(--pink),var(--cyan)); background-clip: text; color: transparent; }
 
 .journey-section { position: relative; padding: clamp(5rem,15vh,11.875rem) clamp(1.25rem,5vw,5rem); background: linear-gradient(180deg,var(--background),#0e0b1c); }
 .journey-heading { max-width: 68.75rem; margin: 0 auto 3.4rem; text-align: center; }
@@ -301,27 +413,40 @@ a { color: inherit; text-decoration: none; }
   .chaos-card[data-weight="echo"] { padding: .5rem .72rem; font-size: .71rem; }
   .chaos-card[data-weight="whisper"] { padding: .44rem .66rem; font-size: .69rem; }
   .chaos-aperture { width: min(92vw,22rem); }
-  .module-row { gap: .75rem; }
-  .module-copy h3 { font-size: clamp(2.15rem,11vw,3.4rem); }
-  .module-copy p { display: -webkit-box; max-width: 29ch; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: .66rem; }
-  .room-glyph { width: 4.2rem; height: 3.2rem; }
-  .journey-flow { flex-direction: column; gap: 0; }
-  .journey-node-wrap { display: flex; flex-direction: column; }
-  .journey-node { width: 100%; }
-  .journey-arrow { transform: rotate(90deg); padding: .3rem 0; }
-  .world-grid { grid-template-columns: 1fr; }
-  .world-card { grid-column: span 1; min-height: 13rem; }
-  .world-tea { min-height: 15rem; }
-  .final-cta form { flex-direction: column; }
-  .final-cta input,.final-cta button { width: 100%; }
-  .final-cta footer { flex-direction: column; justify-content: center; line-height: 1.6; }
+  /* Mobile drops the pinned stage. The five scenes become stacked near-full screens in
+     document flow with a single-column composition; the morph object goes sticky so it
+     still travels with the reader instead of being lost with the pin. Nothing here is a
+     scaled-down desktop coordinate -- the absolute field is switched off entirely. */
+  .rooms-story { min-height: auto; --pad-x: 1.25rem; --safe-top: 4.5rem; --safe-bottom: 1.5rem; --chapter-h: 2.4rem; --copy-w: 100%; }
+  .rooms-stage { height: auto; }
+  .rooms-scenes { position: static; }
+  .scene { position: relative; inset: auto; min-height: 86svh; padding: var(--safe-top) var(--pad-x) 3rem; }
+  .scene > * { position: relative; z-index: auto; }
+  .scene-title { inset: auto; margin: 0 0 1rem; font-size: clamp(3.2rem,19vw,5.5rem); text-align: left; }
+  .scene-note { inset: auto; width: 100%; max-width: 34ch; margin: 1.25rem 0 0; text-align: left; }
+  .shard,.frag { top: auto; left: auto; display: inline-block; margin: 0 .3rem .45rem 0; filter: none !important; }
+  .typing { position: absolute; top: auto; right: var(--pad-x); bottom: 2rem; left: auto; }
+  .strip { position: relative; top: auto; left: auto; width: 100%; margin: 1rem 0 0; transform: none; }
+  .strip i { height: 10vh; }
+  .playhead,  .block { position: relative; top: auto; left: auto; margin: 0 .35rem .35rem 0; display: inline-block; }
+  .bars { position: relative; top: auto; left: auto; width: 100%; margin: 1.25rem 0 0; transform: none; }
+  .photo { position: relative; top: auto; left: auto; display: inline-block; width: 44%; height: 15vh; margin: 0 .4rem .4rem 0; }
+  .rooms-morph { position: sticky; z-index: var(--z-morph); top: 40svh; left: auto; width: min(62vw,16rem); height: 21svh; margin: 0 auto; }
+  .rooms-chapters { position: sticky; z-index: var(--z-chapters); inset: auto; height: auto; flex-direction: row; flex-wrap: wrap; gap: .5rem 1rem; padding: 1rem var(--pad-x) 0; }
+  .rooms-chapters li { grid-template-columns: auto auto; gap: .35rem; font-size: .55rem; letter-spacing: .16em; }
+  .rooms-finale { position: relative; inset: auto; padding: 4.5rem var(--pad-x) 5.5rem; }
 }
 
 @media (max-height: 720px) and (min-width: 641px) {
-  .modules-kicker { padding-top: 3.5rem; }
-  .module-copy h3 { font-size: clamp(1.8rem,4.4vw,3.8rem); }
-  .module-copy p { font-size: .66rem; }
-  .room-glyph { height: 3.2rem; }
+  /* Short viewports: the vertical budget, not the horizontal one, is what breaks first.
+     Tighten the safe bands, shrink the type, and drop the densest furniture. */
+  .rooms-story { --safe-top: 4.75rem; --chapter-h: 5.6rem; }
+  .scene-title { font-size: clamp(3rem,10vw,7rem); }
+  .scene-note { font-size: .72rem; line-height: 1.45; }
+  .strip i { height: 13vh; }
+  .rooms-chapters li { font-size: .55rem; letter-spacing: .2em; }
+  .t-oneday { top: calc(var(--safe-top) + 4vh); }
+  .n-oneday { top: calc(var(--safe-top) + 38vh); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -330,7 +455,7 @@ a { color: inherit; text-decoration: none; }
   .hero-statement { visibility: visible; opacity: 1; transform: translateY(9rem); }
   /* Reduced motion keeps the spatial composition and loses only the movement. The field
      becomes a static, slightly tightened picture with the payoff stacked beneath it. */
-  .chaos-scene,.modules-scene { min-height: auto; overflow: visible; }
+  .chaos-scene,.rooms-story { min-height: auto; overflow: visible; }
   .chaos-stage { height: auto; padding: 5rem 1.25rem 4rem; overflow: visible; --chaos-spread: .74; }
   .chaos-stage::after { display: none; }
   .chaos-glow,.chaos-aperture { display: none; }
@@ -339,7 +464,28 @@ a { color: inherit; text-decoration: none; }
   .chaos-card { opacity: 1 !important; visibility: visible !important; }
   .chaos-card[data-weight="whisper"],.chaos-card[data-weight="echo"] { opacity: .85 !important; }
   .chaos-payoff { position: static; margin-top: 3.5rem; padding: 0; visibility: visible; }
-  .modules-stage { height: auto; min-height: 100svh; padding-block: 4rem; overflow: visible; }
-  .modules-kicker { padding-top: 0; }
-  .module-row { --on: 1; }
+  /* Reduced motion: no pin, no travel, no crossfade. Every room sits in its resolved
+     state, so all five titles, descriptions and visuals are readable at once and no
+     information depends on an animation that will never play. */
+  /* Reduced motion: no stage, no pin, no morph. The five scenes become five plain
+     readable blocks with their titles, copy and furniture already composed, so the
+     whole story is legible without a single frame of animation. */
+  .rooms-stage { height: auto; overflow: visible; }
+  .rooms-scenes { position: static; }
+  .rooms-atmos i { opacity: .2; }
+  .scene { position: relative; inset: auto; min-height: auto; padding: 3.5rem 1.5rem; }
+  .scene > * { position: relative; opacity: 1 !important; }
+  .scene-title { inset: auto; margin-bottom: 1rem; font-size: clamp(3rem,12vw,7rem); text-align: left; transform: none; }
+  .scene-note { inset: auto; max-width: 52ch; margin-top: 1rem; text-align: left; transform: none; }
+  .shard,.frag { top: auto; left: auto; display: inline-block; margin: 0 .3rem .4rem 0; filter: none !important; }
+  .typing,.playhead,.bars { display: none; }
+  .strip { position: relative; top: auto; left: auto; width: 100%; margin-top: 1rem; transform: none; }
+  .strip i { height: 9vh; }
+  .block { position: relative; top: auto; left: auto; display: inline-block; margin: 0 .35rem .35rem 0; }
+  .photo { position: relative; top: auto; left: auto; display: inline-block; width: 30%; height: 14vh; margin: 0 .4rem .4rem 0; }
+  .rooms-morph,.rooms-finale { position: relative; inset: auto; }
+  .rooms-morph { display: none; }
+  .rooms-finale { padding: 3rem 1.5rem 5rem; }
+  .rooms-chapters { position: relative; inset: auto; flex-direction: row; flex-wrap: wrap; gap: 1rem; padding: 2.5rem 1.5rem 0; }
+  .rooms-chapters li { opacity: 1; }
 }
