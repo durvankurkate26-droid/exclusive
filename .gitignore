@@ -5,3 +5,4 @@ out/
 .openai/*.tar.gz
 *.log
 EXCLUSIVE-share.html
+trail-originals/
