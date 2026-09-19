@@ -140,16 +140,71 @@ a { color: inherit; text-decoration: none; }
 .is-open .menu-footer { transform: translateY(0); opacity: 1; }
 
 .chaos-scene { background: linear-gradient(180deg,var(--background),#0d0b1a 42%,var(--background)); }
-.chaos-stage { position: relative; width: 100%; height: 100svh; overflow: hidden; }
-.chaos-label { position: absolute; inset: 2.15rem 0 auto; z-index: 4; margin: 0; color: var(--muted); font-family: var(--font-mono); font-size: .6875rem; letter-spacing: .3em; text-align: center; opacity: .35; }
-.chaos-cards { position: absolute; inset: 0; }
-.chaos-card { position: absolute; top: 50%; left: 50%; z-index: 2; margin: 0; padding: .75rem 1rem; border: 1px solid rgba(164,159,196,.2); border-radius: 1rem; background: linear-gradient(180deg,#231d3d,#191430); box-shadow: 0 12px 40px rgba(0,0,0,.5); font-size: .9375rem; font-weight: 500; white-space: nowrap; will-change: transform, opacity; }
-.chaos-card[data-tone="pink"] { border-color: rgba(255,92,200,.25); }
-.chaos-card[data-tone="cyan"] { border-color: rgba(91,224,255,.25); background: linear-gradient(180deg,#1c2440,#141a30); }
-.chaos-card[data-tone="violet"] { border-color: rgba(107,91,255,.3); }
-.chaos-card[data-tone="muted"] { color: var(--muted); background: #191430; font-size: .875rem; }
-.chaos-card[data-tone="loud"] { border: 0; background: linear-gradient(135deg,var(--violet),var(--pink)); box-shadow: 0 14px 46px rgba(255,92,200,.4); color: #fff; font-weight: 700; }
-.chaos-payoff { position: absolute; inset: 0; display: grid; place-content: center; padding: 1.5rem; text-align: center; visibility: hidden; }
+.chaos-stage { position: relative; width: 100%; height: 100svh; overflow: hidden; --chaos-spread: 1; }
+/* Vignette above the field: makes the fragments clipped by the viewport edge read as
+   deliberate framing, and pushes the far depth layer visually backwards. */
+.chaos-stage::after { content: ""; position: absolute; inset: 0; z-index: 3; background: radial-gradient(72% 62% at 50% 48%,transparent 42%,rgba(11,10,20,.55) 78%,rgba(11,10,20,.92) 100%); pointer-events: none; }
+.chaos-glow { position: absolute; inset: 0; z-index: 0; background: radial-gradient(34% 42% at 50% 50%,rgba(107,91,255,.5),rgba(255,92,200,.18) 46%,transparent 72%); opacity: 0; pointer-events: none; }
+.chaos-label { position: absolute; inset: 2.15rem 0 auto; z-index: 4; margin: 0; color: var(--muted); font-family: var(--font-mono); font-size: .6875rem; letter-spacing: .3em; text-align: center; opacity: .38; }
+.chaos-cards { position: absolute; z-index: 2; inset: 0; margin: 0; padding: 0; list-style: none; }
+
+/* Resting composition lives in CSS, not in the timeline. Without JavaScript, or under
+   reduced motion, the scattered field still renders; GSAP animates transforms relative
+   to this anchor, so the scene is resize-proof for free. */
+.chaos-card {
+  position: absolute;
+  left: calc(50% + (var(--chaos-x) * var(--chaos-spread)));
+  top: calc(50% + (var(--chaos-y) * var(--chaos-spread)));
+  margin: 0;
+  padding: .75rem 1.05rem;
+  border: 1px solid rgba(164,159,196,.22);
+  border-radius: 1.1rem;
+  background: linear-gradient(180deg,#231d3d,#191430);
+  box-shadow: 0 14px 40px rgba(5,4,12,.55);
+  font-size: .9375rem;
+  font-weight: 500;
+  white-space: nowrap;
+  transform: translate(-50%,-50%) rotate(var(--chaos-rotate)) scale(var(--chaos-scale));
+}
+/* Armed by the scene on mount, so a failed script never leaves an empty viewport. */
+.chaos-stage[data-armed="true"] .chaos-card { opacity: 0; visibility: hidden; }
+/* will-change only while the section is actually pinned. */
+.chaos-stage[data-chaos-live] .chaos-card { will-change: transform, opacity, clip-path; }
+.chaos-stage[data-chaos-live] .chaos-cards { will-change: transform, clip-path; }
+
+/* Four weight tiers so no two fragments read as the same object. The z-index ladder
+   makes the near layers overlap the far ones, which DOM order alone would not do. */
+.chaos-card[data-weight="whisper"] { z-index: 1; }
+.chaos-card[data-weight="echo"] { z-index: 2; }
+.chaos-card[data-weight="lead"] { z-index: 3; }
+.chaos-card[data-weight="hero"] { z-index: 4; }
+.chaos-card[data-weight="hero"] { padding: 1.05rem 1.6rem; font-size: 1.0625rem; letter-spacing: .015em; }
+.chaos-card[data-weight="echo"] { padding: .65rem .95rem; border-color: rgba(164,159,196,.17); font-size: .875rem; }
+.chaos-card[data-weight="whisper"] { padding: .5rem .8rem; border-color: rgba(164,159,196,.12); background: rgba(28,23,52,.78); box-shadow: 0 8px 24px rgba(5,4,12,.45); color: var(--muted); font-size: .8125rem; }
+
+.chaos-card[data-tone="pink"] { border-color: rgba(255,92,200,.28); }
+.chaos-card[data-tone="cyan"] { border-color: rgba(91,224,255,.26); background: linear-gradient(180deg,#1c2440,#141a30); }
+.chaos-card[data-tone="violet"] { border-color: rgba(107,91,255,.32); }
+.chaos-card[data-tone="muted"] { color: var(--muted); background: linear-gradient(180deg,#1d1836,#171226); }
+.chaos-card[data-tone="loud"] { border: 0; background: linear-gradient(135deg,var(--violet),var(--pink)); box-shadow: 0 18px 48px rgba(5,4,12,.6),0 10px 38px rgba(255,92,200,.34); color: #fff; font-weight: 700; }
+
+/* The iris. Centred with the `translate` property so GSAP can own `transform` outright. */
+.chaos-aperture {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 5;
+  width: min(86vw,46rem);
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  border: 1px solid rgba(255,92,200,.5);
+  border-radius: 50%;
+  box-shadow: 0 0 70px rgba(255,92,200,.22),inset 0 0 90px rgba(107,91,255,.2);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.chaos-payoff { position: absolute; inset: 0; z-index: 6; display: grid; place-content: center; padding: 1.5rem; text-align: center; visibility: hidden; }
 .chaos-payoff p { margin: 0 0 .875rem; letter-spacing: .4em; }
 .chaos-payoff h2 { margin: 0; font-family: var(--font-display); font-size: clamp(3rem,9vw,7.5rem); font-weight: 400; letter-spacing: .01em; line-height: .9; }
 .chaos-payoff h2 span,.journey-heading h2 span,.final-cta h2 span { background: linear-gradient(90deg,var(--violet),var(--pink),var(--cyan)); background-clip: text; color: transparent; }
@@ -234,8 +289,18 @@ a { color: inherit; text-decoration: none; }
   .menu-content { padding-inline: 1.75rem; }
   .menu-list a { font-size: clamp(3.3rem,18vw,5rem); }
   .chaos-label { inset-inline: 1rem; font-size: .58rem; letter-spacing: .2em; line-height: 1.5; }
-  .chaos-card { padding: .6rem .75rem; font-size: .75rem; }
-  .chaos-card[data-tone="muted"] { font-size: .7rem; }
+  /* Mobile gets its own, calmer coordinates and scales rather than the desktop field. */
+  .chaos-card {
+    left: calc(50% + (var(--chaos-mx) * var(--chaos-spread)));
+    top: calc(50% + (var(--chaos-my) * var(--chaos-spread)));
+    padding: .58rem .8rem;
+    font-size: .76rem;
+    transform: translate(-50%,-50%) rotate(var(--chaos-rotate)) scale(var(--chaos-mscale));
+  }
+  .chaos-card[data-weight="hero"] { padding: .78rem 1.05rem; font-size: .85rem; }
+  .chaos-card[data-weight="echo"] { padding: .5rem .72rem; font-size: .71rem; }
+  .chaos-card[data-weight="whisper"] { padding: .44rem .66rem; font-size: .69rem; }
+  .chaos-aperture { width: min(92vw,22rem); }
   .module-row { gap: .75rem; }
   .module-copy h3 { font-size: clamp(2.15rem,11vw,3.4rem); }
   .module-copy p { display: -webkit-box; max-width: 29ch; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: .66rem; }
@@ -263,12 +328,17 @@ a { color: inherit; text-decoration: none; }
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
   .hero-statement { visibility: visible; opacity: 1; transform: translateY(9rem); }
+  /* Reduced motion keeps the spatial composition and loses only the movement. The field
+     becomes a static, slightly tightened picture with the payoff stacked beneath it. */
   .chaos-scene,.modules-scene { min-height: auto; overflow: visible; }
-  .chaos-stage { display: flex; height: auto; min-height: 100svh; flex-direction: column; justify-content: center; padding: 6rem 1.25rem 4rem; }
-  .chaos-label { position: static; margin-bottom: 2rem; opacity: 1; }
-  .chaos-cards { position: static; display: flex; flex-wrap: wrap; justify-content: center; gap: .75rem; }
-  .chaos-card { position: static; transform: none !important; opacity: 1 !important; visibility: visible !important; }
-  .chaos-payoff { position: static; margin-top: 3rem; visibility: visible; }
+  .chaos-stage { height: auto; padding: 5rem 1.25rem 4rem; overflow: visible; --chaos-spread: .74; }
+  .chaos-stage::after { display: none; }
+  .chaos-glow,.chaos-aperture { display: none; }
+  .chaos-label { position: static; margin: 0 0 1.5rem; opacity: .55; }
+  .chaos-cards { position: relative; inset: auto; height: 74svh; overflow: hidden; }
+  .chaos-card { opacity: 1 !important; visibility: visible !important; }
+  .chaos-card[data-weight="whisper"],.chaos-card[data-weight="echo"] { opacity: .85 !important; }
+  .chaos-payoff { position: static; margin-top: 3.5rem; padding: 0; visibility: visible; }
   .modules-stage { height: auto; min-height: 100svh; padding-block: 4rem; overflow: visible; }
   .modules-kicker { padding-top: 0; }
   .module-row { --on: 1; }
