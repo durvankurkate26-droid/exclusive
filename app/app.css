@@ -1,0 +1,1153 @@
+/* ===========================================================================
+   THE PRODUCT
+
+   Same tokens as the landing page, different volume. The landing page is a film;
+   this is a place you live in, so the motion budget goes on orientation and
+   feedback rather than choreography.
+
+   `--room` is the one variable that changes between the five rooms. The shell
+   writes it, and the ambient wash, the nav indicator and every room header read it.
+   That is deliberately the *only* thing that changes: one visual family, five
+   lighting states — not five themes.
+   =========================================================================== */
+
+.app-shell {
+  position: relative;
+  min-height: 100svh;
+  background: var(--background);
+  /* Desktop bar height + mobile dock height, so pages can reason about the safe area. */
+  --bar-h: 3.75rem;
+  --dock-h: 0rem;
+  --gutter: clamp(1.25rem, 4vw, 3rem);
+}
+
+/* ---------------------------------------------------------------- atmosphere */
+
+.app-atmos {
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  pointer-events: none;
+}
+
+.app-atmos i {
+  position: absolute;
+  inset: -25%;
+  display: block;
+  /* The crossfade between rooms. Long enough to feel like light changing, short
+     enough that a fast navigator is not waiting for it. */
+  transition: background 0.9s ease, opacity 0.9s ease;
+}
+
+.app-atmos-key {
+  background: radial-gradient(
+    38% 34% at 22% 12%,
+    color-mix(in srgb, var(--room) 22%, transparent),
+    transparent 68%
+  );
+}
+
+.app-atmos-fill {
+  background:
+    radial-gradient(34% 30% at 82% 78%, color-mix(in srgb, var(--room) 14%, transparent), transparent 70%),
+    radial-gradient(50% 42% at 50% 110%, rgba(107, 91, 255, 0.1), transparent 70%);
+}
+
+/* ---------------------------------------------------------------- top bar */
+
+.app-bar {
+  position: sticky;
+  z-index: 30;
+  top: 0;
+  display: grid;
+  height: var(--bar-h);
+  align-items: center;
+  gap: 1rem;
+  padding: 0 var(--gutter);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  background: color-mix(in srgb, var(--background) 82%, transparent);
+  backdrop-filter: blur(14px);
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+}
+
+.app-bar-left {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.app-bar-right {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.app-brand {
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  white-space: nowrap;
+}
+
+.app-bar-divider {
+  width: 1px;
+  height: 1rem;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.app-group {
+  overflow: hidden;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.22em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition: color 0.2s ease;
+}
+
+.app-group:hover { color: var(--foreground); }
+
+.app-brand:focus-visible,
+.app-group:focus-visible {
+  outline: 1px solid var(--cyan);
+  outline-offset: 5px;
+}
+
+/* ---------------------------------------------------------------- room nav */
+
+.room-nav-list {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: clamp(0.35rem, 1.4vw, 1.1rem);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.room-nav-list a {
+  position: relative;
+  display: block;
+  padding: 0.55rem 0.2rem;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.24em;
+  white-space: nowrap;
+  transition: color 0.25s ease;
+}
+
+.room-nav-list a:hover { color: var(--foreground); }
+
+.room-nav-list a[data-active="true"] {
+  color: #fff;
+}
+
+.room-nav-list a:focus-visible {
+  outline: 1px solid var(--cyan);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+/* One element that travels, rather than a border per item. See RoomNav.tsx. */
+.room-nav-indicator {
+  position: absolute;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--room, var(--pink));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--room, var(--pink)) 60%, transparent);
+  transition:
+    left 0.45s cubic-bezier(0.65, 0.01, 0.05, 0.99),
+    width 0.45s cubic-bezier(0.65, 0.01, 0.05, 0.99);
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------------- account */
+
+.account { position: relative; }
+
+.account-trigger {
+  display: grid;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+  place-items: center;
+}
+
+.account-trigger:focus-visible {
+  outline: 1px solid var(--cyan);
+  outline-offset: 3px;
+}
+
+.account-menu {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 0.7rem);
+  right: 0;
+  width: min(17rem, calc(100vw - 2rem));
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 1rem;
+  background: linear-gradient(170deg, rgba(29, 23, 56, 0.97), rgba(15, 12, 32, 0.97));
+  box-shadow: 0 24px 60px rgba(4, 3, 10, 0.6);
+  animation: account-in 0.22s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@keyframes account-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+}
+
+.account-identity {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.account-name {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.account-handle {
+  margin: 0.1rem 0 0;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  letter-spacing: 0.14em;
+}
+
+.account-group {
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.account-section {
+  margin: 0 0 0.35rem;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.28em;
+  opacity: 0.7;
+}
+
+.account-group-name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  letter-spacing: 0.02em;
+}
+
+.account-links {
+  display: grid;
+  padding: 0.45rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.account-links:last-child { border-bottom: 0; }
+
+.account-links a,
+.account-signout {
+  display: block;
+  width: 100%;
+  padding: 0.55rem 0.55rem;
+  border: 0;
+  border-radius: 0.55rem;
+  background: none;
+  color: var(--foreground);
+  font: inherit;
+  font-size: 0.8125rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.account-links a:hover,
+.account-signout:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.account-signout { color: var(--pink); }
+
+.account-links a:focus-visible,
+.account-signout:focus-visible {
+  outline: 1px solid var(--cyan);
+  outline-offset: -1px;
+}
+
+/* ---------------------------------------------------------------- avatars */
+
+.avatar {
+  position: relative;
+  display: inline-grid;
+  overflow: hidden;
+  flex: none;
+  border-radius: 50%;
+  background: linear-gradient(
+    150deg,
+    hsl(var(--avatar-hue, 260) 55% 42%),
+    hsl(calc(var(--avatar-hue, 260) + 40) 60% 26%)
+  );
+  place-items: center;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-initials {
+  color: #fff;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
+.avatar-stack {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Negative margin overlaps the faces; the ring is what keeps them separable. */
+.avatar-stack-item + .avatar-stack-item {
+  margin-left: calc(var(--stack-size, 30px) * -0.32);
+}
+
+.avatar-stack-item .avatar {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    0 0 0 2px var(--background);
+}
+
+.avatar-more {
+  display: inline-grid;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 0 2px var(--background);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  place-items: center;
+}
+
+/* ---------------------------------------------------------------- main */
+
+.app-main {
+  position: relative;
+  z-index: 1;
+  padding: clamp(1.5rem, 4vh, 2.75rem) var(--gutter) calc(4rem + var(--dock-h));
+}
+
+/* ---------------------------------------------------------------- mobile dock */
+
+.room-dock { display: none; }
+
+@media (max-width: 860px) {
+  .app-shell { --dock-h: 4.25rem; }
+
+  /* The room rail is the dock's job below this width; keeping both would mean two
+     navigations competing for the same five destinations. */
+  .app-bar { grid-template-columns: minmax(0, 1fr) auto; }
+  .room-nav { display: none; }
+
+  .room-dock {
+    position: fixed;
+    z-index: 30;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: grid;
+    height: var(--dock-h);
+    align-items: center;
+    padding: 0 0.35rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    background: color-mix(in srgb, var(--background) 88%, transparent);
+    backdrop-filter: blur(16px);
+    grid-template-columns: repeat(6, 1fr);
+    /* Clear the home indicator on iOS. */
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .room-dock a {
+    display: grid;
+    gap: 0.22rem;
+    padding: 0.4rem 0.1rem;
+    border-radius: 0.6rem;
+    color: var(--muted);
+    justify-items: center;
+    transition: color 0.2s ease;
+  }
+
+  .room-dock a[data-active="true"] { color: #fff; }
+
+  .room-dock-mark {
+    display: grid;
+    width: 1.75rem;
+    height: 1.75rem;
+    border: 1px solid transparent;
+    border-radius: 0.55rem;
+    font-family: var(--font-mono);
+    font-size: 0.5625rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    place-items: center;
+    transition: border-color 0.25s ease, background 0.25s ease, color 0.25s ease;
+  }
+
+  .room-dock a[data-active="true"] .room-dock-mark {
+    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    color: var(--accent);
+  }
+
+  .room-dock-label {
+    font-family: var(--font-mono);
+    font-size: 0.4375rem;
+    letter-spacing: 0.14em;
+    white-space: nowrap;
+  }
+
+  .room-dock a:focus-visible { outline: 1px solid var(--cyan); outline-offset: 2px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-atmos i,
+  .room-nav-indicator { transition: none; }
+  .account-menu { animation: none; }
+}
+
+/* ===========================================================================
+   ROOM CHROME — shared by all six pages
+   =========================================================================== */
+
+.room-head {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.5rem;
+  max-width: 78rem;
+  margin: 0 auto clamp(1.5rem, 4vh, 2.5rem);
+  padding-bottom: 1.1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-wrap: wrap;
+}
+
+/* The rule under the header picks up the room's colour on its left third — enough to
+   say "you are in TEA" without recolouring the page. */
+.room-head::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: min(34%, 14rem);
+  height: 1px;
+  background: linear-gradient(90deg, var(--room), transparent);
+}
+
+.room-kicker {
+  margin: 0 0 0.5rem;
+  color: var(--room, var(--pink));
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  letter-spacing: 0.3em;
+}
+
+.room-kicker span { color: var(--muted); }
+
+.room-title {
+  max-width: 24ch;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.9rem, 4.6vw, 3.1rem);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 0.95;
+}
+
+.room-head-actions { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+
+/* ---------------------------------------------------------------- buttons */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.62rem 1.15rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.btn:hover { background: rgba(255, 255, 255, 0.09); border-color: rgba(255, 255, 255, 0.3); }
+.btn:active { transform: translateY(1px); }
+.btn:focus-visible { outline: 1px solid var(--cyan); outline-offset: 3px; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-primary {
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--violet), var(--pink));
+  box-shadow: 0 10px 26px rgba(255, 92, 200, 0.28);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--violet), var(--pink));
+  box-shadow: 0 14px 32px rgba(255, 92, 200, 0.4);
+}
+
+.btn-room {
+  border-color: color-mix(in srgb, var(--room) 45%, transparent);
+  background: color-mix(in srgb, var(--room) 14%, transparent);
+  color: var(--room);
+}
+
+.btn-room:hover {
+  border-color: color-mix(in srgb, var(--room) 70%, transparent);
+  background: color-mix(in srgb, var(--room) 22%, transparent);
+}
+
+/* ---------------------------------------------------------------- empty */
+
+.empty {
+  max-width: 78rem;
+  margin: clamp(3rem, 12vh, 7rem) auto;
+  text-align: center;
+}
+
+.empty-line {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 5vw, 2.8rem);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
+.empty-hint {
+  margin: 0.5rem 0 0;
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.empty-action { margin-top: 1.6rem; }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ===========================================================================
+   HOME
+   =========================================================================== */
+
+.home { max-width: 78rem; margin: 0 auto; }
+
+.home-top {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 2rem;
+  margin-bottom: clamp(1.75rem, 5vh, 3rem);
+  flex-wrap: wrap;
+}
+
+.home-kicker {
+  margin: 0 0 0.6rem;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  letter-spacing: 0.3em;
+}
+
+.home-greeting {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(2.4rem, 7vw, 4.5rem);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 0.88;
+}
+
+.home-greeting span {
+  background: linear-gradient(90deg, var(--violet), var(--pink), var(--cyan));
+  background-clip: text;
+  color: transparent;
+}
+
+.home-members {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.45rem 0.9rem 0.45rem 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.home-members:hover { border-color: rgba(255, 255, 255, 0.26); color: var(--foreground); }
+.home-members:focus-visible { outline: 1px solid var(--cyan); outline-offset: 3px; }
+
+/*
+ * Asymmetric on purpose. The lead panel spans two columns and two rows; the rest fill
+ * in around it. Equal cards would say "these five things are equally important",
+ * which is the opposite of what Home is for.
+ */
+.home-grid {
+  display: grid;
+  gap: clamp(0.75rem, 1.6vw, 1.1rem);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+}
+
+.panel {
+  position: relative;
+  display: flex;
+  min-height: 9.5rem;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  padding: 1.25rem 1.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 1.1rem;
+  background: linear-gradient(165deg, rgba(28, 22, 54, 0.6), rgba(16, 13, 34, 0.6));
+  transition: border-color 0.25s ease, transform 0.25s ease, background 0.25s ease;
+}
+
+a.panel:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--room) 45%, transparent);
+  background: linear-gradient(165deg, rgba(34, 27, 64, 0.72), rgba(18, 14, 38, 0.72));
+}
+
+a.panel:focus-visible { outline: 1px solid var(--cyan); outline-offset: 3px; }
+
+/* A hairline of the room's colour down the left edge — the panel's only chrome. */
+.panel::before {
+  content: "";
+  position: absolute;
+  top: 1.25rem;
+  bottom: 1.25rem;
+  left: 0;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--room, var(--violet));
+  opacity: 0.85;
+}
+
+.panel-lead {
+  min-height: 17rem;
+  grid-column: span 2;
+  grid-row: span 2;
+  padding: clamp(1.5rem, 3vw, 2.1rem);
+}
+
+.panel-quiet { background: linear-gradient(165deg, rgba(22, 18, 44, 0.5), rgba(14, 11, 30, 0.5)); }
+
+.panel-kicker {
+  margin: 0;
+  color: var(--room, var(--violet));
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.3em;
+}
+
+.panel-title {
+  margin: 0.9rem 0 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.9rem, 4.2vw, 3rem);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 0.95;
+  text-wrap: balance;
+}
+
+.panel-sub {
+  margin: 0.7rem 0 0;
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 1.05;
+  text-wrap: balance;
+}
+
+.panel-lead-line {
+  margin: 0.85rem 0 0;
+  color: var(--foreground);
+  font-size: clamp(0.95rem, 1.8vw, 1.1rem);
+  line-height: 1.45;
+  opacity: 0.86;
+}
+
+.panel-lead-line strong { color: var(--room); font-weight: 600; }
+
+.panel-foot {
+  margin: 1rem 0 0;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.panel-foot a { color: var(--room); }
+
+.panel-people {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 1rem;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 900px) {
+  .home-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .panel-lead { grid-column: span 2; grid-row: auto; min-height: 13rem; }
+}
+
+@media (max-width: 560px) {
+  .home-grid { grid-template-columns: minmax(0, 1fr); }
+  .panel-lead { grid-column: span 1; }
+  .home-top { align-items: flex-start; flex-direction: column; gap: 1.25rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  a.panel:hover { transform: none; }
+}
+
+/* ===========================================================================
+   SHARED ROOM BITS
+   =========================================================================== */
+
+.room { max-width: 78rem; margin: 0 auto; }
+
+.section-label {
+  margin: 0 0 0.9rem;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  font-weight: 400;
+  letter-spacing: 0.3em;
+}
+
+/* An inline form that opens in place instead of a modal. Creating something in this
+   product is a reflex, and a dialog makes it a decision. */
+.inline-form {
+  display: grid;
+  gap: 0.55rem;
+  width: min(28rem, 100%);
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, var(--room) 32%, transparent);
+  border-radius: 1rem;
+  background: rgba(20, 16, 40, 0.8);
+}
+
+.inline-form input,
+.inline-form textarea,
+.inline-form select {
+  width: 100%;
+  padding: 0.65rem 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 0.7rem;
+  outline: none;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 0.875rem;
+}
+
+.inline-form input::placeholder,
+.inline-form textarea::placeholder { color: rgba(164, 159, 196, 0.5); }
+
+.inline-form input:focus,
+.inline-form textarea:focus,
+.inline-form select:focus {
+  border-color: var(--room);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--room) 18%, transparent);
+}
+
+.inline-form-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+.inline-form-error {
+  margin: 0;
+  color: #ff9ecb;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+}
+
+/* ===========================================================================
+   TEA — list
+   =========================================================================== */
+
+.tea-list { display: grid; gap: clamp(1.75rem, 4vh, 2.75rem); }
+
+.tea-cards {
+  display: grid;
+  gap: clamp(0.7rem, 1.4vw, 1rem);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+}
+
+.tea-card {
+  position: relative;
+  display: flex;
+  min-height: 9rem;
+  flex-direction: column;
+  padding: 1.15rem 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 1rem;
+  background: linear-gradient(165deg, rgba(34, 24, 54, 0.6), rgba(18, 13, 34, 0.6));
+  transition: border-color 0.22s ease, transform 0.22s ease, background 0.22s ease;
+}
+
+.tea-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--room) 48%, transparent);
+  background: linear-gradient(165deg, rgba(42, 28, 66, 0.72), rgba(22, 15, 42, 0.72));
+}
+
+.tea-card:focus-visible { outline: 1px solid var(--cyan); outline-offset: 3px; }
+
+.tea-cards.is-quiet .tea-card { min-height: 6rem; opacity: 0.66; }
+.tea-cards.is-quiet .tea-card:hover { opacity: 1; }
+
+.tea-card-status {
+  align-self: flex-start;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.tea-card-status[data-status="brewing"] {
+  background: color-mix(in srgb, var(--room) 18%, transparent);
+  color: var(--room);
+}
+
+.tea-card h3 {
+  margin: 0.7rem 0 0;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 1.04;
+  text-wrap: balance;
+}
+
+.tea-card-context {
+  margin: 0.45rem 0 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.tea-card-foot {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: auto;
+  padding-top: 0.9rem;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  flex-wrap: wrap;
+}
+
+/* ===========================================================================
+   TEA — thread
+   =========================================================================== */
+
+.room-thread { max-width: 52rem; }
+
+.thread-back {
+  display: inline-block;
+  margin-bottom: 1.1rem;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  transition: color 0.2s ease;
+}
+
+.thread-back:hover { color: var(--room); }
+.thread-back:focus-visible { outline: 1px solid var(--cyan); outline-offset: 3px; }
+
+.thread-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.25rem;
+  padding-bottom: 1.2rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-wrap: wrap;
+}
+
+.thread-title {
+  max-width: 20ch;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.9rem, 5vw, 2.9rem);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 0.96;
+}
+
+.thread-context {
+  max-width: 48ch;
+  margin: 0.6rem 0 0;
+  color: var(--foreground);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  opacity: 0.82;
+}
+
+.thread-meta {
+  margin: 0.7rem 0 0;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.tea-room { display: grid; gap: 1rem; margin-top: 1.5rem; }
+
+.tea-stream {
+  display: grid;
+  max-height: min(58vh, 34rem);
+  gap: 0.15rem;
+  overflow-y: auto;
+  padding-right: 0.4rem;
+  scrollbar-width: thin;
+}
+
+.tea-nothing {
+  margin: 2.5rem 0;
+  color: var(--muted);
+  font-size: 0.9375rem;
+  text-align: center;
+}
+
+/*
+ * Messages are typographic blocks in one column, not bubbles.
+ *
+ * A single column with a name, a time and the words reads like a transcript of
+ * something that mattered. Two columns of coloured bubbles reads like a screenshot
+ * of the group chat TEA exists to replace.
+ */
+.tea-message {
+  position: relative;
+  padding: 0.5rem 0.75rem 0.5rem 0.9rem;
+  border-radius: 0.6rem;
+  animation: tea-in 0.3s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@keyframes tea-in {
+  from { opacity: 0; transform: translateY(6px); }
+}
+
+.tea-message[data-run="true"] { padding-top: 0.05rem; }
+.tea-message[data-pending="true"] { opacity: 0.55; }
+
+/* Your own messages are marked by a hairline, not a different colour or side. */
+.tea-message[data-mine="true"]::before {
+  content: "";
+  position: absolute;
+  top: 0.35rem;
+  bottom: 0.35rem;
+  left: 0;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--room);
+  opacity: 0.6;
+}
+
+.tea-message-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.tea-author {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.tea-time {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.tea-text {
+  margin: 0;
+  padding-left: calc(26px + 0.5rem);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.tea-message[data-run="true"] .tea-text { padding-left: calc(26px + 0.5rem); }
+
+.tea-message-foot {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.3rem;
+  padding-left: calc(26px + 0.5rem);
+  min-height: 1.35rem;
+}
+
+.tea-reaction {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.12rem 0.45rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--muted);
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+
+.tea-reaction[data-mine="true"] {
+  border-color: color-mix(in srgb, var(--room) 55%, transparent);
+  background: color-mix(in srgb, var(--room) 16%, transparent);
+  color: var(--room);
+}
+
+.tea-reaction:hover { border-color: rgba(255, 255, 255, 0.3); }
+.tea-reaction:focus-visible { outline: 1px solid var(--cyan); outline-offset: 2px; }
+
+/* The quick-reaction row only appears on hover or keyboard focus, so a quiet
+   conversation is not covered in emoji buttons. */
+.tea-react-menu {
+  display: flex;
+  gap: 0.1rem;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+.tea-message:hover .tea-react-menu,
+.tea-react-menu:focus-within { opacity: 1; }
+
+.tea-react-menu button {
+  padding: 0.1rem 0.25rem;
+  border: 0;
+  border-radius: 0.4rem;
+  background: none;
+  font-size: 0.8125rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.tea-react-menu button:hover { background: rgba(255, 255, 255, 0.1); transform: scale(1.15); }
+.tea-react-menu button:focus-visible { outline: 1px solid var(--cyan); outline-offset: 1px; }
+
+.tea-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+  padding: 0.7rem;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 1rem;
+  background: rgba(20, 16, 40, 0.75);
+}
+
+.tea-composer:focus-within { border-color: color-mix(in srgb, var(--room) 50%, transparent); }
+
+.tea-composer textarea {
+  flex: 1;
+  min-height: 2.6rem;
+  max-height: 9rem;
+  padding: 0.6rem 0.7rem;
+  border: 0;
+  border-radius: 0.6rem;
+  outline: none;
+  background: none;
+  color: var(--foreground);
+  font: inherit;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.tea-composer textarea::placeholder { color: rgba(164, 159, 196, 0.5); }
+
+.tea-closed {
+  margin: 0;
+  padding: 0.9rem;
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border-radius: 1rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+.tea-error { margin: 0; color: #ff9ecb; font-family: var(--font-mono); font-size: 0.625rem; }
+
+@media (max-width: 560px) {
+  .tea-text,
+  .tea-message-foot { padding-left: 0; }
+  .tea-stream { max-height: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tea-message { animation: none; }
+  .tea-card:hover { transform: none; }
+  .tea-react-menu { opacity: 1; }
+}

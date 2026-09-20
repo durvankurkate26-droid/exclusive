@@ -7,3 +7,11 @@ out/
 EXCLUSIVE-share.html
 trail-originals/
 .claude/
+
+# secrets — never commit
+.env
+.env.*
+!.env.example
+
+# typescript build info
+*.tsbuildinfo
