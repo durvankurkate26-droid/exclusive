@@ -27,6 +27,30 @@ a { color: inherit; text-decoration: none; }
 ::selection { background: var(--pink); color: var(--background); }
 
 .site-shell { position: relative; overflow: clip; background: var(--background); }
+
+/* ---------------------------------------------------------------- THE WORLD
+   One atmosphere behind the entire page. Every section used to paint an opaque
+   backdrop that restarted from flat #0b0a14, so each boundary reset the world and the
+   page read as a stack of separate documents. Sections are transparent tints now and
+   this fixed field shows through all of them: same room, different lighting.
+   `--world-y` is the page scroll progress, which drifts the light sources slowly so
+   the atmosphere evolves without any section ever swapping its background. */
+.world-atmos { position: fixed; z-index: 0; inset: 0; pointer-events: none; --world-y: 0; }
+.world-atmos i { position: absolute; inset: -20% -10%; display: block; }
+.world-violet {
+  background: radial-gradient(58% 44% at 52% 18%, rgba(107,91,255,.22), transparent 62%);
+  transform: translate3d(0, calc(var(--world-y) * -14vh), 0);
+}
+.world-magenta {
+  background: radial-gradient(46% 38% at 74% 54%, rgba(255,92,200,.15), transparent 64%);
+  transform: translate3d(0, calc(var(--world-y) * -34vh), 0);
+}
+.world-cyan {
+  background: radial-gradient(52% 40% at 26% 88%, rgba(91,224,255,.1), transparent 66%);
+  transform: translate3d(0, calc(var(--world-y) * -52vh), 0);
+}
+/* Sections sit above the field; their own ambient layers light it from in front. */
+.site-shell > section { position: relative; z-index: 1; }
 .scene-screen { position: relative; min-height: 100svh; overflow: hidden; }
 .nav-label {
   color: #fff;
@@ -55,7 +79,7 @@ a { color: inherit; text-decoration: none; }
   box-shadow: 0 0 12px var(--pink);
   pointer-events: none;
 }
-.hero-scene { display: grid; place-items: center; isolation: isolate; }
+.hero-scene { display: grid; place-items: center; isolation: isolate; --hx: 0; --hy: 0; }
 .hero-aurora {
   position: absolute;
   inset: 0;
@@ -63,6 +87,25 @@ a { color: inherit; text-decoration: none; }
     radial-gradient(120% 80% at 50% 12%, rgba(107, 91, 255, .22), transparent 55%),
     radial-gradient(90% 70% at 80% 90%, rgba(255, 92, 200, .18), transparent 60%);
 }
+
+/* Depth layer. Three cropped glyphs at 2-4% opacity, deliberately oversized and
+   asymmetric, drifting slower than everything else so the empty field has a floor
+   without acquiring any objects. */
+.hero-ghosts { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.hero-ghosts { opacity: 0; }
+.ghost {
+  position: absolute;
+  color: #fff;
+  font-family: var(--font-display);
+  font-weight: 400;
+  line-height: .74;
+  user-select: none;
+  will-change: transform;
+}
+.ghost-e { left: -7vw; top: -14vh; font-size: 58vw; opacity: .034; transform: translate3d(calc(var(--hx) * 10px), calc(var(--hy) * 8px), 0); }
+.ghost-x { right: -12vw; bottom: -22vh; font-size: 66vw; opacity: .026; transform: translate3d(calc(var(--hx) * -14px), calc(var(--hy) * -10px), 0); }
+.ghost-v { left: 34vw; bottom: -30vh; font-size: 44vw; opacity: .02; transform: translate3d(calc(var(--hx) * 6px), calc(var(--hy) * 5px), 0); }
+
 .hero-meta {
   position: absolute;
   z-index: 10;
@@ -72,24 +115,97 @@ a { color: inherit; text-decoration: none; }
   font-size: .6875rem;
   letter-spacing: .2em;
   line-height: 1.6;
+  transform: translate3d(calc(var(--hx) * 5px), calc(var(--hy) * 4px), 0);
 }
-.eyebrow { font-family: var(--font-mono); font-size: .75rem; letter-spacing: .5em; }
-.exclusive-wordmark {
+/* World-building metadata: quiet enough to be felt, legible enough to be read. */
+.hero-micro {
+  position: absolute;
+  z-index: 10;
   margin: 0;
-  background:
-    repeating-linear-gradient(118deg, rgba(255,255,255,.16) 0 2px, transparent 2px 9px),
-    linear-gradient(90deg, #6b5bff 0%, #b25bff 20%, #ff5cc8 42%, #ff9f6b 60%, #5be0ff 82%, #6b5bff 100%);
-  background-size: 200% 100%, 240% 100%;
-  background-clip: text;
-  color: transparent;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: .5625rem;
+  letter-spacing: .34em;
+  opacity: .62;
+  transform: translate3d(calc(var(--hx) * 4px), calc(var(--hy) * 3px), 0);
+}
+.micro-left { bottom: 7vh; left: 7vw; }
+.micro-right { right: 7vw; bottom: 7vh; }
+
+.eyebrow { font-family: var(--font-mono); font-size: .75rem; letter-spacing: .5em; }
+
+/* The wordmark is now a container: the gradient lives on each letter so a transformed
+   letter carries its own colour with it. Each letter shows its ninth of the word-wide
+   ramp via background-position, which keeps the sweep continuous across the word. */
+.exclusive-wordmark {
+  position: relative;
+  margin: 0;
   filter: drop-shadow(0 8px 40px rgba(107,91,255,.35));
   font-family: var(--font-display);
   font-size: clamp(4rem, 17vw, 16.25rem);
   font-weight: 400;
   letter-spacing: .01em;
   line-height: .86;
-  animation: film-move 16s linear infinite;
 }
+.ex-word { display: block; white-space: nowrap; transform-style: preserve-3d; }
+
+.ex-letter {
+  position: relative;
+  display: inline-block;
+  background:
+    repeating-linear-gradient(118deg, rgba(255,255,255,.16) 0 2px, transparent 2px 9px),
+    linear-gradient(90deg, #6b5bff 0%, #b25bff 20%, #ff5cc8 42%, #ff9f6b 60%, #5be0ff 82%, #6b5bff 100%);
+  background-size: auto, 900% 100%;
+  background-position: 0 0, calc(var(--i) * 12.5%) 0;
+  background-clip: text;
+  color: transparent;
+  transform: translate3d(calc(var(--hx) * var(--lx, 3px)), calc(var(--hy) * var(--ly, 2px)), 0);
+  transform-origin: 50% 60%;
+  will-change: transform, opacity;
+}
+/* Letters nearer the ends lean a little further under the pointer than the centre,
+   which is what makes the row read as one surface tilting rather than nine buttons. */
+.ex-letter:nth-child(1),.ex-letter:nth-child(9) { --lx: 6px; --ly: 4px; }
+.ex-letter:nth-child(2),.ex-letter:nth-child(8) { --lx: 5px; --ly: 3px; }
+.ex-letter:nth-child(3),.ex-letter:nth-child(7) { --lx: 4px; --ly: 2.5px; }
+.ex-letter:nth-child(5) { --lx: 2px; --ly: 1.5px; }
+
+/* Two complementary horizontal slices per letter. They overlap by 4% so the seam never
+   shows as a hairline, and they start offset so the alignment is a visible beat. */
+.ex-slice { display: block; }
+.ex-slice-top { clip-path: inset(0 0 52% 0); }
+.ex-slice-bottom { position: absolute; inset: 0; clip-path: inset(48% 0 0 0); }
+
+/* One authored light pass, driven by --sweep. There is no idle loop: the highlight is
+   invisible at rest and the timeline runs it exactly once, staggered left to right. */
+.ex-letter::after {
+  content: attr(data-char);
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(104deg, transparent 12%, rgba(255,255,255,.9) 38%, rgba(199,139,255,.8) 52%, rgba(91,224,255,.62) 64%, transparent 88%);
+  background-size: 260% 100%;
+  background-position: calc(120% - var(--sweep, 0) * 220%) 0;
+  background-clip: text;
+  color: transparent;
+  opacity: calc(var(--sweep, 0) * .85);
+  pointer-events: none;
+}
+
+/* The doorway. Sits behind the word and opens where the centre letter recedes. */
+.hero-door {
+  position: absolute;
+  z-index: -1;
+  top: 50%;
+  left: 50%;
+  width: clamp(8rem, 17vw, 16rem);
+  height: clamp(7rem, 13vh, 11rem);
+  translate: -50% -50%;
+  border-radius: 999px;
+  background: radial-gradient(60% 60% at 50% 50%, rgba(255,214,245,.5), rgba(199,139,255,.28) 45%, transparent 72%);
+  opacity: 0;
+  pointer-events: none;
+}
+
 .hero-footnote { margin: .875rem 0 0; color: var(--muted); font-family: var(--font-mono); font-size: .6875rem; letter-spacing: .16em; }
 .hero-footnote span { opacity: .55; }
 .hero-statement {
@@ -139,13 +255,16 @@ a { color: inherit; text-decoration: none; }
 .menu-footer a { color: var(--pink); }
 .is-open .menu-footer { transform: translateY(0); opacity: 1; }
 
-.chaos-scene { background: linear-gradient(180deg,var(--background),#0d0b1a 42%,var(--background)); }
+/* A deepening, not a new backdrop: the world shows through the middle. */
+.chaos-scene { background: linear-gradient(180deg,transparent,rgba(4,3,10,.42) 46%,transparent); }
 .chaos-stage { position: relative; width: 100%; height: 100svh; overflow: hidden; --chaos-spread: 1; }
 /* Vignette above the field: makes the fragments clipped by the viewport edge read as
    deliberate framing, and pushes the far depth layer visually backwards. */
 .chaos-stage::after { content: ""; position: absolute; inset: 0; z-index: 3; background: radial-gradient(72% 62% at 50% 48%,transparent 42%,rgba(11,10,20,.55) 78%,rgba(11,10,20,.92) 100%); pointer-events: none; }
-.chaos-glow { position: absolute; inset: 0; z-index: 0; background: radial-gradient(34% 42% at 50% 50%,rgba(107,91,255,.5),rgba(255,92,200,.18) 46%,transparent 72%); opacity: 0; pointer-events: none; }
-.chaos-label { position: absolute; inset: 2.15rem 0 auto; z-index: 4; margin: 0; color: var(--muted); font-family: var(--font-mono); font-size: .6875rem; letter-spacing: .3em; text-align: center; opacity: .38; }
+.chaos-glow { position: absolute; inset: 0; z-index: 0; background: radial-gradient(34% 42% at 50% 50%,rgba(107,91,255,.5),rgba(255,92,200,.18) 46%,transparent 72%),radial-gradient(68% 58% at 42% 62%,rgba(107,91,255,.12),transparent 70%); opacity: 0; pointer-events: none; }
+/* Cleared of the fixed navbar: at 2.15rem this sat directly under MEMBERS ONLY in the
+   same centre column, reading as one stacked block. Matches the hero's safe top. */
+.chaos-label { position: absolute; inset: clamp(5rem,12vh,7.5rem) 0 auto; z-index: 4; margin: 0; color: var(--muted); font-family: var(--font-mono); font-size: .6875rem; letter-spacing: .3em; text-align: center; opacity: .38; }
 .chaos-cards { position: absolute; z-index: 2; inset: 0; margin: 0; padding: 0; list-style: none; }
 
 /* Resting composition lives in CSS, not in the timeline. Without JavaScript, or under
@@ -229,7 +348,6 @@ a { color: inherit; text-decoration: none; }
   position: relative;
   min-height: 100svh;
   overflow: hidden;
-  background: var(--background);
   --pad-x: clamp(1.5rem,5vw,5.5rem);
   --safe-top: clamp(5rem,12vh,7.5rem);
   --safe-bottom: clamp(2.25rem,5vh,3.25rem);
@@ -342,7 +460,7 @@ a { color: inherit; text-decoration: none; }
 .rooms-finale p:first-child { color: var(--muted); }
 .rooms-finale span { background: linear-gradient(90deg,var(--violet),var(--pink),var(--cyan)); background-clip: text; color: transparent; }
 
-.journey-section { position: relative; padding: clamp(5rem,15vh,11.875rem) clamp(1.25rem,5vw,5rem); background: linear-gradient(180deg,var(--background),#0e0b1c); }
+.journey-section { position: relative; padding: clamp(5rem,15vh,11.875rem) clamp(1.25rem,5vw,5rem); background: linear-gradient(180deg,transparent,rgba(14,11,28,.5)); }
 .journey-heading { max-width: 68.75rem; margin: 0 auto 3.4rem; text-align: center; }
 .journey-heading .eyebrow,.world-heading .eyebrow,.cta-inner .eyebrow { margin: 0 0 1rem; letter-spacing: .34em; }
 .journey-heading h2,.world-heading h2,.final-cta h2 { margin: 0; font-family: var(--font-display); font-size: clamp(2.7rem,7vw,5.75rem); font-weight: 400; line-height: .92; }
@@ -356,7 +474,7 @@ a { color: inherit; text-decoration: none; }
 .journey-arrow { align-self: center; padding: 0 .45rem; color: var(--pink); font-family: var(--font-mono); font-size: 1.25rem; font-style: normal; }
 .journey-loop { max-width: 73.75rem; margin: 1.25rem auto 0; color: var(--violet); font-family: var(--font-mono); font-size: .6875rem; letter-spacing: .24em; text-align: center; }
 
-.product-world { position: relative; padding: clamp(5rem,14vh,11.25rem) clamp(1.25rem,5vw,5rem); background: linear-gradient(180deg,var(--background),#100d1e); }
+.product-world { position: relative; padding: clamp(5rem,14vh,11.25rem) clamp(1.25rem,5vw,5rem); background: linear-gradient(180deg,transparent,rgba(16,13,30,.55)); }
 .world-heading { max-width: 75rem; margin: 0 auto 3rem; }
 .world-heading h2 { max-width: 16ch; font-size: clamp(3rem,8vw,6.875rem); }
 .world-grid { display: grid; max-width: 75rem; margin: 0 auto; grid-template-columns: repeat(6,1fr); gap: .875rem; }
@@ -375,7 +493,7 @@ a { color: inherit; text-decoration: none; }
 .availability{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}.availability i{aspect-ratio:1;border-radius:4px;background:rgba(255,255,255,.12)}.availability i:nth-child(3),.availability i:nth-child(4),.availability i:nth-child(6){background:var(--pink)}
 .vault-grid{position:absolute;right:1rem;bottom:1rem;display:grid;grid-template-columns:repeat(3,34px);grid-auto-rows:34px;gap:5px}.vault-grid i{border-radius:6px;background:linear-gradient(135deg,var(--violet),var(--pink))}.vault-grid i:nth-child(even){background:repeating-linear-gradient(45deg,#2a2450 0 5px,#1e1a3a 5px 10px)}.vault-grid i:nth-child(3){background:linear-gradient(135deg,var(--pink),var(--cyan))}.vault-grid i:nth-child(5){background:linear-gradient(135deg,var(--cyan),var(--violet))}
 
-.final-cta { position: relative; overflow: hidden; padding: clamp(5.625rem,18vh,13.75rem) clamp(1.25rem,5vw,5rem) 2.2rem; background: radial-gradient(120% 90% at 50% 100%,rgba(107,91,255,.24),transparent 60%),#0d0b1a; text-align: center; }
+.final-cta { position: relative; overflow: hidden; padding: clamp(5.625rem,18vh,13.75rem) clamp(1.25rem,5vw,5rem) 2.2rem; background: radial-gradient(120% 90% at 50% 100%,rgba(107,91,255,.26),transparent 60%),linear-gradient(180deg,transparent,rgba(10,8,22,.55)); text-align: center; }
 .cta-inner { max-width: 47.5rem; margin: 0 auto; }
 .final-cta h2 { font-size: clamp(3.4rem,12vw,9.375rem); line-height: .86; }
 .cta-inner > p:not(.eyebrow) { max-width: 44ch; margin: 1.4rem auto 2.25rem; color: var(--muted); font-size: clamp(1rem,2vw,1.1875rem); }
@@ -397,6 +515,13 @@ a { color: inherit; text-decoration: none; }
   header .nav-label:nth-child(2) { display: none; }
   .hero-meta { top: 17vh; max-width: 10rem; font-size: .6rem; letter-spacing: .12em; }
   .exclusive-wordmark { font-size: clamp(4.2rem, 25vw, 8rem); }
+  /* Mobile keeps the assembly but drops the spatial extras: one ghost, no slice offset
+     worth seeing at this size, no pointer layer. */
+  .ghost-v,.ghost-x { display: none; }
+  .ghost-e { font-size: 92vw; opacity: .03; }
+  .hero-micro { font-size: .5rem; letter-spacing: .24em; }
+  .micro-left { bottom: 5.5vh; left: 1.5rem; }
+  .micro-right { right: 1.5rem; bottom: 5.5vh; }
   .hero-footnote { max-width: 20rem; margin-inline: auto; padding-inline: 1rem; font-size: .58rem; line-height: 1.6; }
   .menu-content { padding-inline: 1.75rem; }
   .menu-list a { font-size: clamp(3.3rem,18vw,5rem); }
@@ -453,6 +578,15 @@ a { color: inherit; text-decoration: none; }
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
   .hero-statement { visibility: visible; opacity: 1; transform: translateY(9rem); }
+  /* Reduced motion: the finished word, immediately. No travel, no slicing, no sweep. */
+  .ex-letter,.ex-word { transform: none !important; }
+  .ex-letter::after { display: none; }
+  .ex-slice-top { clip-path: none; }
+  .ex-slice-bottom { display: none; }
+  .hero-ghosts { opacity: 1 !important; }
+  .ghost { transform: none !important; }
+  .hero-micro,.hero-meta { opacity: .62; transform: none !important; }
+  .hero-door { display: none; }
   /* Reduced motion keeps the spatial composition and loses only the movement. The field
      becomes a static, slightly tightened picture with the payoff stacked beneath it. */
   .chaos-scene,.rooms-story { min-height: auto; overflow: visible; }

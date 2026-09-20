@@ -129,7 +129,6 @@ export function ModulesScene() {
 
       // Resting state: every scene off, the object as a TEA capsule.
       gsap.set(atmos, { opacity: 0 });
-      gsap.set(atmos[0], { opacity: 1 });
       gsap.set(scenes, { autoAlpha: 0 });
       gsap.set(titles, { opacity: 0, yPercent: 18 });
       gsap.set(notes, { opacity: 0, y: 14 });
@@ -158,6 +157,26 @@ export function ModulesScene() {
         "--edge": "var(--pink)",
       });
 
+      // APPROACH. Everything here is gated to autoAlpha 0 until the pin engages, so the
+      // story used to scroll in as a blank screen and then snap into TEA. Bringing the
+      // atmosphere and the chapter rail up during the travel means the pin inherits a
+      // scene that is already breathing instead of one that switches on.
+      gsap.fromTo(
+        [atmos[0], section.querySelector("[data-chapters]")],
+        { autoAlpha: 0 },
+        {
+          autoAlpha: 1,
+          ease: "none",
+          scrollTrigger: {
+            trigger: section,
+            start: "top bottom",
+            end: "top top",
+            scrub: 0.6,
+            invalidateOnRefresh: true,
+          },
+        },
+      );
+
       const tl = gsap.timeline({
         scrollTrigger: {
           trigger: section,
@@ -182,11 +201,13 @@ export function ModulesScene() {
         tl.to(notes[i], { opacity: 0, y: -10, duration: 0.04, ease: "power2.in" }, outAt - 0.07);
       });
 
+      // The active chapter crossfades against the rest over a real band. The previous
+      // version dimmed every row and then re-lit the active one with a 0.001s tween --
+      // an instant set dressed as a tween, which showed up as a blink on the indicator.
       const chapter = (i: number, at: number) =>
-        tl
-          .to(chapters[i], { opacity: 1, duration: 0.03, ease: "none" }, at)
-          .to(chapters, { opacity: 0.22, duration: 0.03, ease: "none" }, at + 0.09)
-          .to(chapters[i], { opacity: 1, duration: 0.001 }, at + 0.0905);
+        chapters.forEach((row, j) => {
+          tl.to(row, { opacity: j === i ? 1 : 0.22, duration: 0.06, ease: "none" }, at);
+        });
 
       // ---------------------------------------------------------------- TEA
       // Type is clipped by the left edge; shards scatter across the full field at
@@ -262,7 +283,7 @@ export function ModulesScene() {
         )
         .to(one('[data-face="tea"]'), { opacity: 0, duration: 0.04 }, L.teaToCreate + 0.01)
         .to(one('[data-face="create"]'), { opacity: 1, duration: 0.05 }, L.teaToCreate + 0.04)
-        .to(atmos[0], { opacity: 0, duration: 0.08, ease: "none" }, L.teaToCreate)
+        .fromTo(atmos[0], { opacity: 1 }, { opacity: 0, duration: 0.08, ease: "none", immediateRender: false }, L.teaToCreate)
         .to(atmos[1], { opacity: 1, duration: 0.08, ease: "none" }, L.teaToCreate);
 
       // ------------------------------------------------------------- CREATE
@@ -594,7 +615,7 @@ export function ModulesScene() {
         </div>
 
         {/* The old list survives only as a chapter index. */}
-        <ol className="rooms-chapters" aria-label="Chapters">
+        <ol data-chapters className="rooms-chapters" aria-label="Chapters">
           {rooms.map((room) => (
             <li key={room.name} data-chapter>
               <b>{room.number}</b>

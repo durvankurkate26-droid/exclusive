@@ -139,7 +139,7 @@ export function SocialChaosScene() {
         gsap.set(field, { clipPath: "circle(145% at 50% 50%)", scale: 1, transformOrigin: "50% 50%" });
         gsap.set(aperture, { autoAlpha: 0, scale: 1.35 });
         gsap.set(glow, { autoAlpha: 0, scale: 0.6, transformOrigin: "50% 50%" });
-        gsap.set(label, { autoAlpha: 1, y: 0, scale: 1, clipPath: "inset(0 0% 0 0%)" });
+        gsap.set(label, { y: 0, scale: 1, clipPath: "inset(0 0% 0 0%)" });
         gsap.set(payoff, {
           autoAlpha: 0,
           clipPath: "circle(0% at 50% 50%)",
@@ -147,6 +147,28 @@ export function SocialChaosScene() {
           rotationX: 7,
           transformPerspective: 1000,
         });
+
+        // APPROACH. The section used to scroll in completely dark -- every fragment is
+        // autoAlpha 0 until the pin engages, so there was a full viewport of blank
+        // scrolling and then the scene sprang to life the instant it pinned. That jump
+        // is what reads as a page switch. This band runs while the section is still
+        // travelling up, so the atmosphere and the label are already present by the
+        // time the pin takes over and the pinned timeline starts from something.
+        gsap.fromTo(
+          [glow, label],
+          { autoAlpha: 0 },
+          {
+            autoAlpha: (i) => (i === 0 ? (mobile ? 0.5 : 0.7) : 1),
+            ease: "none",
+            scrollTrigger: {
+              trigger: section,
+              start: "top bottom",
+              end: "top top",
+              scrub: 0.6,
+              invalidateOnRefresh: true,
+            },
+          },
+        );
 
         const timeline = gsap.timeline({
           scrollTrigger: {
@@ -175,8 +197,8 @@ export function SocialChaosScene() {
         );
         timeline.fromTo(
           glow,
-          { autoAlpha: 0, scale: 0.55 },
-          { autoAlpha: mobile ? 0.5 : 0.7, scale: 1, ease: "sine.out", duration: 0.55 },
+          { scale: 0.55 },
+          { scale: 1, ease: "none", duration: 0.55 },
           0.02,
         );
 
@@ -284,17 +306,19 @@ export function SocialChaosScene() {
         });
 
         // The label is squeezed out of frame as the organisation beat begins.
-        timeline.to(
+        timeline.fromTo(
           label,
+          { autoAlpha: 1, y: 0, scale: 1, clipPath: "inset(0 0% 0 0%)" },
           {
             y: -20,
             scale: 0.94,
             clipPath: "inset(0 50% 0 50%)",
             autoAlpha: 0,
-            duration: 0.1,
-            ease: "power2.in",
+            duration: 0.17,
+            ease: "none",
+            immediateRender: false,
           },
-          0.62,
+          0.58,
         );
 
         // --- the iris: a visible aperture ring closing over the field, with the field's
@@ -304,7 +328,7 @@ export function SocialChaosScene() {
           .to(field, { scale: 1.05, duration: 0.11, ease: "power2.in" }, 0.83)
           .to(field, { clipPath: "circle(0% at 50% 50%)", duration: 0.11, ease: "power3.inOut" }, 0.83)
           .to(aperture, { scale: 0.02, duration: 0.11, ease: "power3.inOut" }, 0.83)
-          .to(glow, { scale: 1.6, autoAlpha: 0, duration: 0.14, ease: "power2.out" }, 0.86)
+          .to(glow, { scale: 1.6, autoAlpha: 0, duration: 0.14, ease: "none" }, 0.86)
           .to(aperture, { autoAlpha: 0, duration: 0.04, ease: "none" }, 0.92);
 
         // --- payoff: opens from the exact point the iris closed on, overlapping the close
@@ -316,10 +340,19 @@ export function SocialChaosScene() {
             clipPath: "circle(150% at 50% 50%)",
             scale: 1,
             rotationX: 0,
-            duration: 0.13,
-            ease: "power3.out",
+            duration: 0.2,
+            ease: "none",
           },
-          0.87,
+          0.76,
+        );
+
+        // Settle: the payoff keeps drifting after it has arrived, so the pin releases
+        // into motion that is already going the way the page is about to scroll rather
+        // than stopping dead one frame before the handoff.
+        timeline.to(
+          payoff,
+          { y: () => -window.innerHeight * 0.05, duration: 0.04, ease: "none" },
+          0.96,
         );
       }, section);
 

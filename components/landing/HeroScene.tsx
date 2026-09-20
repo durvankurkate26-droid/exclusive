@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { gsap, ScrollTrigger } from "@/lib/animations/gsap";
+import { gsap } from "@/lib/animations/gsap";
 import { CursorImageTrail } from "@/components/ui/cursor-image-trail";
 
 /**
@@ -30,96 +30,384 @@ const TRAIL_ITEMS = ["4 / 5", "1 / 1", "3 / 2", "4 / 5", "1 / 1", "3 / 4", "4 / 
 );
 
 /**
- * The trail is decorative, so it is not rendered at all on touch devices or under
- * reduced motion. Gating the mount rather than the effect means no listener is bound
- * and no nodes exist, instead of being bound and then ignored.
+ * Entry ritual choreography for E X C L U S I V E.
+ *
+ * Each letter is authored, not generated: `x`/`y` are vw/vh offsets from its resting
+ * place, `r` its entry roll, `s` the scale it grows from, and `z` the depth it comes
+ * forward through. `at` is the beat it starts on, ordered centre-outward so the word
+ * grows from its middle rather than sweeping left to right like a typewriter.
+ *
+ * `ease` differs per letter on purpose. U arrives through depth on a long expo, the
+ * outer E's fly furthest and settle hardest, I simply drops. Identical easing across
+ * nine letters is what makes a stagger read as a effect rather than as a composition.
  */
+const LETTERS = [
+  { ch: "E", x: -34, y: -24, r: -9, s: 0.74, z: -160, ry: 16, at: 0.30, d: 0.86, ease: "expo.out" },
+  { ch: "X", x: -48, y: 7, r: 6, s: 0.7, z: -90, ry: -12, at: 0.245, d: 0.9, ease: "expo.out" },
+  { ch: "C", x: -7, y: 31, r: -5, s: 0.82, z: -60, ry: 0, at: 0.19, d: 0.78, ease: "power4.out" },
+  { ch: "L", x: 4, y: -37, r: 7, s: 0.78, z: -40, ry: 0, at: 0.135, d: 0.72, ease: "power4.out" },
+  { ch: "U", x: 0, y: 0, r: 0, s: 0.36, z: -760, ry: 0, at: 0.08, d: 1.05, ease: "expo.out" },
+  { ch: "S", x: 27, y: 28, r: 8, s: 0.72, z: -70, ry: -14, at: 0.135, d: 0.74, ease: "power4.out" },
+  { ch: "I", x: 5, y: -44, r: -4, s: 0.88, z: 0, ry: 0, at: 0.19, d: 0.66, ease: "power3.out" },
+  { ch: "V", x: 42, y: 5, r: -7, s: 0.71, z: -110, ry: 18, at: 0.245, d: 0.9, ease: "expo.out" },
+  { ch: "E", x: 37, y: -21, r: 9, s: 0.76, z: -150, ry: -16, at: 0.30, d: 0.86, ease: "expo.out" },
+];
+
 const TRAIL_QUERY = "(prefers-reduced-motion: no-preference) and (hover: hover) and (pointer: fine)";
 
-function useTrailEnabled() {
-  const [enabled, setEnabled] = useState(false);
+/** The trail is decorative: never mounted on touch or under reduced motion. */
+function useTrailAllowed() {
+  const [allowed, setAllowed] = useState(false);
 
   useEffect(() => {
     const query = window.matchMedia(TRAIL_QUERY);
-    const sync = () => setEnabled(query.matches);
+    const sync = () => setAllowed(query.matches);
     sync();
     query.addEventListener("change", sync);
     return () => query.removeEventListener("change", sync);
   }, []);
 
-  return enabled;
+  return allowed;
 }
 
 export function HeroScene() {
   const sectionRef = useRef<HTMLElement>(null);
-  const trailEnabled = useTrailEnabled();
+  const [introDone, setIntroDone] = useState(false);
+  const trailAllowed = useTrailAllowed();
 
   useLayoutEffect(() => {
     const section = sectionRef.current;
     if (!section) return;
 
     const media = gsap.matchMedia();
-    media.add("(prefers-reduced-motion: no-preference)", () => {
-      const context = gsap.context(() => {
-        const timeline = gsap.timeline({
-          scrollTrigger: {
-            trigger: section,
-            start: "top top",
-            end: "+=135%",
-            pin: true,
-            scrub: 0.65,
-            anticipatePin: 1,
-          },
-        });
 
-        timeline
-          .to("[data-hero-meta]", { autoAlpha: 0, y: -12, duration: 0.22 }, 0)
-          .to("[data-hero-title]", { yPercent: -9, scale: 1.045, duration: 0.55, ease: "none" }, 0)
-          .to("[data-hero-enter]", { autoAlpha: 0, y: -12, duration: 0.2 }, 0.03)
-          .to("[data-hero-cue]", { autoAlpha: 0, duration: 0.18 }, 0.03)
-          .fromTo(
-            "[data-hero-statement]",
-            { autoAlpha: 0, y: "23vh" },
-            { autoAlpha: 1, y: 0, duration: 0.36, ease: "power2.out" },
-            0.28,
-          )
-          .to("[data-hero-title]", { autoAlpha: 0, duration: 0.2 }, 0.62)
-          .to("[data-hero-statement]", { y: -18, duration: 0.2, ease: "none" }, 0.78);
-      }, section);
+    media.add(
+      {
+        motion: "(prefers-reduced-motion: no-preference)",
+        wide: "(min-width: 1024px)",
+        mid: "(min-width: 641px) and (max-width: 1023px)",
+      },
+      (ctx) => {
+        const c = ctx.conditions as { motion: boolean; wide: boolean; mid: boolean };
+        if (!c.motion) {
+          setIntroDone(true);
+          return;
+        }
+        // One travel multiplier drives every distance, so a breakpoint is a single number
+        // rather than a second set of hand-tuned coordinates.
+        const d = c.wide ? 1 : c.mid ? 0.62 : 0.4;
+        const flat = !c.wide && !c.mid;
 
-      return () => context.revert();
-    });
+        const context = gsap.context((self) => {
+          const letters = gsap.utils.toArray<HTMLElement>("[data-letter]");
+          const vw = (n: number) => (n / 100) * window.innerWidth;
+          const vh = (n: number) => (n / 100) * window.innerHeight;
+
+          // ---------------------------------------------------------- ENTRY RITUAL
+          // Plays on load, never on scroll. If the visitor arrives already scrolled
+          // (a refresh mid-page, a restored position) the ritual is skipped and the
+          // word is simply present -- an intro that replays under the fold is noise.
+          const skip = window.scrollY > 40;
+
+          // Resting state first. The scroll-exit timeline records whatever it finds as
+          // each tween's start value, so it must be built against the finished word --
+          // otherwise progress 0 pins the letters to the scattered pre-assembly state
+          // and the handoff permanently fights the entrance.
+          gsap.set(letters, { x: 0, y: 0, z: 0, rotation: 0, rotationY: 0, scale: 1, autoAlpha: 1 });
+          gsap.set("[data-ghosts]", { autoAlpha: 0 });
+          gsap.set("[data-micro]", { autoAlpha: 0, y: 10 });
+
+          buildExit();
+
+          const intro = gsap.timeline({
+            defaults: { force3D: true },
+            onComplete: () => setIntroDone(true),
+          });
+
+          if (skip) {
+            gsap.set("[data-ghosts]", { autoAlpha: 1 });
+            gsap.set("[data-micro]", { autoAlpha: 1, y: 0 });
+            setIntroDone(true);
+          } else {
+            // 1. MICRO SIGNAL -- the system waking up before anything is drawn.
+            intro.fromTo(
+              "[data-hero-enter]",
+              { autoAlpha: 0, letterSpacing: "1.4em", y: 8, filter: "blur(6px)" },
+              {
+                autoAlpha: 1,
+                letterSpacing: "0.5em",
+                y: 0,
+                filter: "blur(0px)",
+                duration: 0.72,
+                ease: "expo.out",
+              },
+              0.12,
+            );
+
+            // 2. ASSEMBLY -- nine authored arrivals, centre-outward.
+            LETTERS.forEach((L, i) => {
+              intro.fromTo(
+                letters[i],
+                {
+                  x: () => vw(L.x) * d,
+                  y: () => vh(L.y) * d,
+                  z: L.z * d,
+                  rotation: L.r * d,
+                  rotationY: flat ? 0 : L.ry * d,
+                  scale: L.s,
+                  autoAlpha: 0,
+                },
+                {
+                  x: 0,
+                  y: 0,
+                  z: 0,
+                  rotation: 0,
+                  rotationY: 0,
+                  scale: 1,
+                  autoAlpha: 1,
+                  duration: L.d,
+                  ease: L.ease,
+                },
+                L.at,
+              );
+              // Slices converge on their own, slightly behind the letter body, so the
+              // seam resolving is a separate readable beat rather than a by-product.
+              intro.fromTo(
+                letters[i].querySelectorAll("[data-slice]"),
+                { xPercent: (s) => (s === 0 ? -9 : 9) * d, yPercent: (s) => (s === 0 ? -3 : 3) * d },
+                { xPercent: 0, yPercent: 0, duration: L.d * 0.8, ease: "expo.out" },
+                L.at + 0.06,
+              );
+            });
+
+            // 3. LOCK -- a few pixels of compression, no overshoot. Components becoming
+            // one word. The ghosts and the background light settle on the same beat.
+            intro
+              .fromTo(
+                "[data-word]",
+                { scale: 1.016, letterSpacing: "0.035em" },
+                { scale: 1, letterSpacing: "0.01em", duration: 0.42, ease: "power3.inOut" },
+                1.16,
+              )
+              .to("[data-ghosts]", { autoAlpha: 1, duration: 0.7, ease: "none" }, 1.0)
+              .fromTo(
+                "[data-hero-aurora]",
+                { opacity: 0.45 },
+                { opacity: 1, duration: 0.6, ease: "power2.out" },
+                1.1,
+              );
+
+            // 4. LIGHT SWEEP -- one pass, left to right, driven by a per-letter variable
+            // that the ::after highlight reads. Runs once; there is no idle loop.
+            intro.to(
+              letters,
+              {
+                keyframes: [
+                  { "--sweep": 1, duration: 0.24, ease: "power2.out" },
+                  { "--sweep": 0, duration: 0.34, ease: "power2.in" },
+                ],
+                stagger: { each: 0.045, from: "start" },
+              },
+              1.32,
+            );
+
+            // 5. AMBIENCE -- world-building metadata arrives last, quietly.
+            intro.to(
+              "[data-micro]",
+              { autoAlpha: 1, y: 0, duration: 0.6, ease: "power2.out", stagger: 0.07 },
+              1.3,
+            );
+
+            // An impatient visitor must never out-run the ritual. Scrolling during the
+            // intro finishes it immediately, which fires onComplete and builds the pin
+            // before the hero can scroll away without one.
+            const hurry = () => {
+              window.removeEventListener("scroll", hurry);
+              if (intro.progress() < 1) intro.progress(1, false);
+            };
+            window.addEventListener("scroll", hurry, { passive: true, once: true });
+            self.add(() => () => window.removeEventListener("scroll", hurry));
+          }
+
+          // ------------------------------------------------------- SCROLL HANDOFF
+          // The word does not fade: it parts. Letters drift toward the edge they are
+          // nearest, the seams split back open, and the statement rises through the gap
+          // that opens in the middle. ENTER THE ROOM, made literal.
+          //
+          // Built only once the ritual has finished. Created up front, a scrubbed
+          // ScrollTrigger records whatever the letters look like at build time as its
+          // baseline and re-applies it at progress 0 -- which, during the intro, is the
+          // scattered pre-assembly state. The handoff then permanently fought the
+          // entrance and the word never reached full opacity.
+          function buildExit() {
+          const exit = gsap.timeline({
+            scrollTrigger: {
+              trigger: section,
+              start: "top top",
+              end: "+=135%",
+              pin: true,
+              scrub: 0.65,
+              anticipatePin: 1,
+              invalidateOnRefresh: true,
+            },
+          });
+
+          exit
+            .to("[data-hero-meta],[data-micro]", { autoAlpha: 0, y: -12, duration: 0.2 }, 0)
+            .to("[data-hero-enter]", { autoAlpha: 0, y: -12, duration: 0.18 }, 0.02)
+            .to("[data-hero-cue]", { autoAlpha: 0, duration: 0.16 }, 0.02);
+
+          // A door swinging, not a word exploding.
+          //
+          // The whole word holds composed through the first tenth of the pin -- only its
+          // tracking opens, which reads as pressure building rather than as movement.
+          // Then the OUTER letters release first and the inner ones follow, so the word
+          // parts from its edges inward and the centre is the last thing to give way.
+          // `power2.in` keeps the first half of each letter's travel almost invisible and
+          // spends the distance late, which is what makes it read as a hinge.
+          exit.fromTo(
+            "[data-word]",
+            { letterSpacing: "0.01em" },
+            { letterSpacing: "0.09em", duration: 0.3, ease: "none" },
+            0,
+          );
+
+          LETTERS.forEach((L, i) => {
+            const from = i - 4;
+            const rank = Math.abs(from);                 // 0 centre .. 4 outermost
+            const at = 0.1 + (4 - rank) * 0.03;          // outer letters go first
+            const span = 0.86 - at;
+
+            exit.to(
+              letters[i],
+              {
+                x: () => vw(from * 7) * d,
+                y: () => vh(rank * 1.5 - 2) * d,
+                rotation: from * 1.2 * d,
+                z: from === 0 ? -480 * d : -50 * d,
+                autoAlpha: from === 0 ? 0 : 1,
+                duration: span,
+                ease: "power2.in",
+              },
+              at,
+            );
+            exit.to(
+              letters[i].querySelectorAll("[data-slice]"),
+              {
+                xPercent: (s) => (s === 0 ? -13 : 13) * d,
+                duration: span * 0.9,
+                ease: "power1.in",
+              },
+              at + 0.06,
+            );
+          });
+
+          exit
+            // The doorway: a warm gap opens where the centre letter was.
+            .fromTo(
+              "[data-door]",
+              { autoAlpha: 0, scaleX: 0.2, scaleY: 0.35 },
+              { autoAlpha: 1, scaleX: 1, scaleY: 1, duration: 0.4, ease: "none" },
+              0.3,
+            )
+            .fromTo(
+              "[data-hero-statement]",
+              { autoAlpha: 0, y: "23vh" },
+              { autoAlpha: 1, y: 0, duration: 0.4, ease: "none" },
+              0.4,
+            )
+            .to("[data-ghosts]", { autoAlpha: 0.35, scale: 1.18, duration: 0.6, ease: "none" }, 0.2)
+            .to("[data-word]", { autoAlpha: 0, duration: 0.22, ease: "none" }, 0.78)
+            .to("[data-door]", { autoAlpha: 0, scale: 1.6, duration: 0.2, ease: "none" }, 0.8)
+            .to("[data-hero-statement]", { y: -18, duration: 0.2, ease: "none" }, 0.78);
+
+            // Sections below were measured without the hero's pin-spacer, so their
+            // triggers need re-measuring now that it exists.
+          }
+
+          // ------------------------------------------------- POINTER PROXIMITY
+          // Desktop only, and only once the word is whole. One rAF-throttled variable
+          // on the section; CSS multiplies it per depth layer, so there is no per-frame
+          // bookkeeping and the letters never move far enough to hurt legibility.
+          if (!c.wide) return;
+
+          let frame = 0;
+          let px = 0;
+          let py = 0;
+          const apply = () => {
+            frame = 0;
+            section.style.setProperty("--hx", px.toFixed(3));
+            section.style.setProperty("--hy", py.toFixed(3));
+          };
+          const onMove = (e: PointerEvent) => {
+            px = gsap.utils.clamp(-1, 1, (e.clientX / window.innerWidth) * 2 - 1);
+            py = gsap.utils.clamp(-1, 1, (e.clientY / window.innerHeight) * 2 - 1);
+            if (!frame) frame = requestAnimationFrame(apply);
+          };
+          const onLeave = () => {
+            px = 0;
+            py = 0;
+            if (!frame) frame = requestAnimationFrame(apply);
+          };
+          section.addEventListener("pointermove", onMove, { passive: true });
+          section.addEventListener("pointerleave", onLeave);
+
+          return () => {
+            if (frame) cancelAnimationFrame(frame);
+            section.removeEventListener("pointermove", onMove);
+            section.removeEventListener("pointerleave", onLeave);
+          };
+        }, section);
+
+        return () => context.revert();
+      },
+    );
 
     return () => media.revert();
   }, []);
 
   return (
     <section ref={sectionRef} id="top" className="hero-scene scene-screen" aria-labelledby="hero-title">
-      <div className="hero-aurora" aria-hidden="true" />
-      {/* Sibling layer, not a wrapper, so the grid and every data-hero-* target stay put.
-          `absolute inset-0` makes this box match the section the trail measures against,
-          and `containerRef` binds the listener to the hero alone rather than to window. */}
-      {trailEnabled && (
-        <CursorImageTrail
-          containerRef={sectionRef}
-          items={TRAIL_ITEMS}
-          itemSize={150}
-          trailLength={5}
-          spawnDistance={130}
-          rotationRange={13}
-          className="pointer-events-none absolute inset-0 z-[1]"
-        />
-      )}
+      <div data-hero-aurora className="hero-aurora" aria-hidden="true" />
+
+      {/* Depth, not decoration: three enormous cropped glyphs at 2-4% opacity that
+          parallax slower than anything else. Meant to be felt, not read. */}
+      <div data-ghosts className="hero-ghosts" aria-hidden="true">
+        <span className="ghost ghost-e">E</span>
+        <span className="ghost ghost-x">X</span>
+        <span className="ghost ghost-v">V</span>
+      </div>
+
       <p data-hero-meta className="hero-meta left-[7vw] top-[15vh]">
         03:41 AM<br />still awake, obviously
       </p>
       <p data-hero-meta className="hero-meta right-[7vw] top-[20vh] text-right">
         est. whenever<br />the chat began
       </p>
+      <p data-micro className="hero-micro micro-left">09 MEMBERS</p>
+      <p data-micro className="hero-micro micro-right">NO OUTSIDERS</p>
 
       <div className="relative z-10 text-center">
         <p data-hero-enter className="eyebrow mb-4 text-[var(--pink)]">↓ ENTER THE ROOM</p>
-        <h1 id="hero-title" data-hero-title className="exclusive-wordmark">EXCLUSIVE</h1>
+        <h1 id="hero-title" data-hero-title className="exclusive-wordmark">
+          <span className="sr-only">EXCLUSIVE</span>
+          {/* The doorway light sits behind the word and opens where U recedes. */}
+          <span data-door className="hero-door" aria-hidden="true" />
+          <span data-word className="ex-word" aria-hidden="true">
+            {LETTERS.map((L, i) => (
+              <span
+                key={`${L.ch}-${i}`}
+                data-letter
+                data-char={L.ch}
+                className="ex-letter"
+                style={{ "--i": i } as React.CSSProperties}
+              >
+                <span data-slice className="ex-slice ex-slice-top">{L.ch}</span>
+                <span data-slice className="ex-slice ex-slice-bottom">{L.ch}</span>
+              </span>
+            ))}
+          </span>
+        </h1>
         <p data-hero-meta className="hero-footnote">
           ↳ your friend photos scroll through here <span>[drop-in later]</span>
         </p>
@@ -135,6 +423,23 @@ export function HeroScene() {
         <span>SCROLL</span>
         <i />
       </div>
+
+      {/* Mounted once and left mounted. Toggling this node's existence mid-scroll made
+          React insert into a section ScrollTrigger had already re-parented into its
+          pin-spacer, which threw NotFoundError and killed the whole effect. The intro
+          gate is a prop instead: an impossible spawn distance until the word is whole,
+          which re-runs the trail's own effect without touching the DOM tree. */}
+      {trailAllowed && (
+        <CursorImageTrail
+          containerRef={sectionRef}
+          items={TRAIL_ITEMS}
+          itemSize={150}
+          trailLength={5}
+          spawnDistance={introDone ? 130 : 1e6}
+          rotationRange={13}
+          className="pointer-events-none absolute inset-0 z-[2]"
+        />
+      )}
     </section>
   );
 }

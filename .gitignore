@@ -6,3 +6,4 @@ out/
 *.log
 EXCLUSIVE-share.html
 trail-originals/
+.claude/

@@ -53,13 +53,13 @@ export const chatFragments: ChatFragment[] = [
   // far-left, deliberately clipped by the viewport edge
   { text: "bhai photos bhej na", x: -54, y: -5, mx: -24, my: -34, rotate: 3, scale: 0.88, mscale: 0.78, depth: -0.55, tone: "violet", weight: "echo", enter: "left", at: 0.14, mobile: false },
   // small fragment riding the top edge
-  { text: "Saturday pakka na?", x: -3, y: -41, mx: -6, my: -34, rotate: -2, scale: 0.74, mscale: 0.76, depth: -0.8, tone: "violet", weight: "whisper", enter: "whisper", at: 0.155, mobile: true },
+  { text: "Saturday pakka na?", x: -8, y: -27, mx: -6, my: -34, rotate: -2, scale: 0.74, mscale: 0.76, depth: -0.8, tone: "violet", weight: "whisper", enter: "whisper", at: 0.155, mobile: true },
   // the dominant message: mid-right, forward in z, punches through
   { text: "WE HAVE TO MAKE THIS REEL", x: 23, y: 7, mx: -6, my: 6, rotate: -3, scale: 1.24, mscale: 1.02, depth: 1, tone: "loud", weight: "hero", enter: "punch", at: 0.225, mobile: true },
   // lower-right
   { text: "tea after lecture???", x: 18, y: 34, mx: -16, my: 34, rotate: -6.5, scale: 0.9, mscale: 0.88, depth: 0.5, tone: "pink", weight: "lead", enter: "bottom", at: 0.265, mobile: true },
   // low-centre, wide, fills the bottom of the frame
-  { text: "send the good pics, not the ugly ones \u{1F62D}", x: 2, y: 22, mx: 0, my: 0, rotate: -4, scale: 0.86, mscale: 0.7, depth: 0.15, tone: "pink", weight: "echo", enter: "bottom", at: 0.285, mobile: false },
+  { text: "send the good pics, not the ugly ones \u{1F62D}", x: 5, y: 16, mx: 0, my: 0, rotate: -4, scale: 0.86, mscale: 0.7, depth: 0.15, tone: "pink", weight: "echo", enter: "bottom", at: 0.285, mobile: false },
   // lower-right outer band
   { text: "yeh plan fir cancel mat karna", x: 44, y: 26, mx: 0, my: 0, rotate: 5.5, scale: 0.82, mscale: 0.72, depth: -0.4, tone: "muted", weight: "echo", enter: "right", at: 0.325, mobile: false },
   // lower-left outer band, partly clipped
@@ -67,7 +67,7 @@ export const chatFragments: ChatFragment[] = [
   // far-right, clipped, background chatter
   { text: "bro who invited him \u{1F480}", x: 53, y: -23, mx: 0, my: 0, rotate: 8, scale: 0.76, mscale: 0.7, depth: -0.9, tone: "muted", weight: "whisper", enter: "right", at: 0.39, mobile: false },
   // floating near centre-left, the last thing to arrive
-  { text: "5 min mein aa raha hu", x: -27, y: 14, mx: 0, my: 0, rotate: -7, scale: 0.7, mscale: 0.68, depth: -0.3, tone: "muted", weight: "whisper", enter: "whisper", at: 0.405, mobile: false },
+  { text: "5 min mein aa raha hu", x: -18, y: 8, mx: 0, my: 0, rotate: -7, scale: 0.7, mscale: 0.68, depth: -0.3, tone: "muted", weight: "whisper", enter: "whisper", at: 0.405, mobile: false },
 ];
 
 export const journeySteps = [
