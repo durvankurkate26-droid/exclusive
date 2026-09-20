@@ -1151,3 +1151,19 @@ a.panel:focus-visible { outline: 1px solid var(--cyan); outline-offset: 3px; }
   .tea-card:hover { transform: none; }
   .tea-react-menu { opacity: 1; }
 }
+
+/* Realtime connection state. Only rendered while the channel is actually down, so a
+   healthy conversation carries no status chrome at all. */
+.tea-offline {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid rgba(255, 92, 200, 0.25);
+  border-radius: 0.6rem;
+  background: rgba(255, 92, 200, 0.06);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  letter-spacing: 0.12em;
+  text-align: center;
+  text-transform: uppercase;
+}

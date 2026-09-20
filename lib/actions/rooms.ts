@@ -4,7 +4,12 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getUser } from "@/lib/data/session";
-import type { Attendance, CreateRole, OptionType } from "@/lib/supabase/database.types";
+import type {
+  Attendance,
+  CreateRole,
+  CreateStatus,
+  OptionType,
+} from "@/lib/supabase/database.types";
 import type { FormState } from "./profile";
 
 export type { FormState };
@@ -148,6 +153,19 @@ export async function addOption(
   // Proposing an option is a vote for it — same reasoning as adding an idea.
   await supabase.from("plan_votes").insert({ option_id: data.id, user_id: user.id });
 
+  revalidatePath(`/g/${slug}/align/${planId}`);
+  return {};
+}
+
+/** Retract something you proposed. RLS restricts this to the option's author. */
+export async function removeOption(
+  optionId: string,
+  planId: string,
+  slug: string,
+): Promise<FormState> {
+  const supabase = await createClient();
+  const { error } = await supabase.from("plan_options").delete().eq("id", optionId);
+  if (error) return { error: error.message };
   revalidatePath(`/g/${slug}/align/${planId}`);
   return {};
 }
@@ -347,6 +365,24 @@ export async function setCreateRole(
   return {};
 }
 
+export async function setCreateStatus(
+  createId: string,
+  slug: string,
+  status: CreateStatus,
+): Promise<FormState> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("create_ideas")
+    .update({ status })
+    .eq("id", createId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath(`/g/${slug}/create`);
+  revalidatePath(`/g/${slug}/create/${createId}`);
+  return {};
+}
+
 /** CREATE -> ALIGN. Same promotion shape as ONE DAY; see the RPC. */
 export async function scheduleShoot(createId: string, slug: string): Promise<FormState> {
   const supabase = await createClient();
@@ -359,4 +395,72 @@ export async function scheduleShoot(createId: string, slug: string): Promise<For
   revalidatePath(`/g/${slug}/create`);
   revalidatePath(`/g/${slug}/align`);
   redirect(`/g/${slug}/align/${data as unknown as string}`);
+}
+
+/* ===========================================================================
+   ALIGN -> VAULT
+
+   The last edge of the loop the landing page promises. A locked plan that has
+   happened becomes a memory capsule seeded with the plan's title, its date and
+   everyone who said they were coming — so the people who were there are already
+   tagged and nobody has to reconstruct the night from scratch.
+   =========================================================================== */
+
+export async function captureToVault(planId: string, slug: string): Promise<FormState> {
+  const user = await getUser();
+  if (!user) return { error: "Signed out." };
+
+  const supabase = await createClient();
+
+  const { data: plan, error: planError } = await supabase
+    .from("plans")
+    .select("id, group_id, title, description, final_date")
+    .eq("id", planId)
+    .maybeSingle();
+
+  if (planError) return { error: planError.message };
+  if (!plan) return { error: "That plan is gone." };
+
+  // Already captured: send them to the capsule rather than making a second one.
+  const { data: existing } = await supabase
+    .from("memory_capsules")
+    .select("id")
+    .eq("source_plan_id", planId)
+    .limit(1)
+    .maybeSingle();
+
+  if (existing) redirect(`/g/${slug}/vault/${existing.id}`);
+
+  const { data: capsule, error } = await supabase
+    .from("memory_capsules")
+    .insert({
+      group_id: plan.group_id,
+      created_by: user.id,
+      title: plan.title,
+      description: plan.description,
+      source_plan_id: plan.id,
+      memory_date: plan.final_date ? plan.final_date.slice(0, 10) : null,
+    })
+    .select("id")
+    .single();
+
+  if (error) return { error: error.message };
+
+  const { data: attending } = await supabase
+    .from("plan_members")
+    .select("user_id")
+    .eq("plan_id", planId)
+    .eq("attendance_status", "in");
+
+  if (attending && attending.length > 0) {
+    await supabase.from("memory_members").insert(
+      attending.map((row) => ({ capsule_id: capsule.id, user_id: row.user_id })),
+    );
+  }
+
+  await supabase.from("plans").update({ status: "done" }).eq("id", planId);
+
+  revalidatePath(`/g/${slug}/align`);
+  revalidatePath(`/g/${slug}/vault`);
+  redirect(`/g/${slug}/vault/${capsule.id}`);
 }

@@ -114,38 +114,98 @@ export async function updateGroup(
   return { message: "Saved." };
 }
 
-export async function leaveGroup(groupId: string): Promise<void> {
+/**
+ * Leave.
+ *
+ * An owner cannot: the RLS policy excludes `role = 'owner'`, because a group whose
+ * owner walked out is one nobody can administer or delete. Rather than redirecting
+ * them to `/groups` while they are quietly still a member, this reports what happened.
+ */
+export async function leaveGroup(groupId: string): Promise<FormState> {
   const user = await getUser();
   if (!user) redirect("/login");
 
   const supabase = await createClient();
-  await supabase
+  const { data, error } = await supabase
     .from("group_members")
     .delete()
     .eq("group_id", groupId)
-    .eq("user_id", user.id);
+    .eq("user_id", user.id)
+    .select("id");
+
+  if (error) return { error: error.message };
+  if (!data || data.length === 0) {
+    return {
+      error:
+        "You own this group. Owners can't leave — delete it instead, or stay.",
+    };
+  }
 
   revalidatePath("/", "layout");
   redirect("/groups");
 }
 
+/**
+ * Promote or demote a member.
+ *
+ * Only `admin` and `member` are reachable: ownership is not a role you hand out from
+ * a dropdown, and the RLS delete policy already assumes exactly one owner exists.
+ * Admins pass the update policy; everyone else gets nothing back and a clear message.
+ */
+export async function setMemberRole(
+  groupId: string,
+  userId: string,
+  role: "admin" | "member",
+): Promise<FormState> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("group_members")
+    .update({ role })
+    .eq("group_id", groupId)
+    .eq("user_id", userId)
+    .neq("role", "owner")
+    .select("id");
+
+  if (error) return { error: error.message };
+  if (!data || data.length === 0) return { error: "You can't change that person's role." };
+
+  revalidatePath("/", "layout");
+  return { message: role === "admin" ? "They can run things now." : "Back to member." };
+}
+
 export async function removeMember(groupId: string, userId: string): Promise<FormState> {
   const supabase = await createClient();
-  const { error } = await supabase
+  // `.select()` makes the result honest: a delete blocked by RLS returns no error and
+  // no rows, so without this the UI would happily say "Removed." about somebody who
+  // is still in the group.
+  const { data, error } = await supabase
     .from("group_members")
     .delete()
     .eq("group_id", groupId)
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .select("id");
 
   if (error) return { error: error.message };
+  if (!data || data.length === 0) {
+    return { error: "You can't remove them. An owner can only delete the group, not be removed from it." };
+  }
+
   revalidatePath("/", "layout");
   return { message: "Removed." };
 }
 
-export async function deleteGroup(groupId: string): Promise<void> {
+export async function deleteGroup(groupId: string): Promise<FormState> {
   const supabase = await createClient();
   // Only an owner passes the delete policy; everything else cascades from the row.
-  await supabase.from("groups").delete().eq("id", groupId);
+  const { data, error } = await supabase
+    .from("groups")
+    .delete()
+    .eq("id", groupId)
+    .select("id");
+
+  if (error) return { error: error.message };
+  if (!data || data.length === 0) return { error: "Only the owner can delete this group." };
+
   revalidatePath("/", "layout");
   redirect("/groups");
 }

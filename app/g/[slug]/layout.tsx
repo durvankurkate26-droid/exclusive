@@ -1,6 +1,7 @@
 import { AppShell } from "@/components/app/AppShell";
 import { requireGroup } from "@/lib/data/session";
 import "../../app.css";
+import "../../rooms.css";
 
 /**
  * Every authenticated room lives under here.

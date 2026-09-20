@@ -47,6 +47,7 @@ export function TeaRoom({
   const [pending, startTransition] = useTransition();
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [live, setLive] = useState(true);
   const listRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
 
@@ -64,9 +65,33 @@ export function TeaRoom({
    */
   useEffect(() => {
     const supabase = createClient();
-    const channel = supabase
-      .channel(`tea:${teaId}`)
-      .on(
+    let cancelled = false;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    /*
+     * The socket has to carry the user's token before it subscribes.
+     *
+     * Realtime enforces RLS using whatever token the *socket* was opened with, not the
+     * one the REST calls use. On a cold load the browser client is still hydrating its
+     * session from cookies when this effect runs, so subscribing immediately opens the
+     * socket as `anon` — which RLS correctly blocks from reading any message. The
+     * channel still reports SUBSCRIBED, so it fails completely silently: the
+     * conversation simply never updates and nothing anywhere says why.
+     *
+     * Awaiting the session and calling setAuth first is what makes the subscription
+     * actually see rows.
+     */
+    const start = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (cancelled) return;
+      if (session?.access_token) await supabase.realtime.setAuth(session.access_token);
+      if (cancelled) return;
+
+      channel = supabase
+        .channel(`tea:${teaId}`)
+        .on(
         "postgres_changes",
         {
           event: "INSERT",
@@ -110,11 +135,24 @@ export function TeaRoom({
             ];
           });
         },
-      )
-      .subscribe();
+        )
+        .subscribe((status) => {
+          // A channel that cannot attach used to fail in total silence. Surfacing it
+          // means a dropped connection reads as "reconnecting", not as a conversation
+          // where everyone else has mysteriously gone quiet.
+          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+            setLive(false);
+          } else if (status === "SUBSCRIBED") {
+            setLive(true);
+          }
+        });
+    };
+
+    void start();
 
     return () => {
-      void supabase.removeChannel(channel);
+      cancelled = true;
+      if (channel) void supabase.removeChannel(channel);
     };
   }, [teaId]);
 
@@ -276,6 +314,12 @@ export function TeaRoom({
         </div>
       ) : (
         <p className="tea-closed">This tea has been spilled. Nothing more to add.</p>
+      )}
+
+      {!live && (
+        <p className="tea-offline" role="status">
+          Reconnecting — new messages may not appear until this clears.
+        </p>
       )}
 
       {error && (

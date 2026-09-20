@@ -1,0 +1,2316 @@
+/* ===========================================================================
+   THE FIVE ROOMS
+
+   Continues app.css. Same tokens, same `--room` contract: the shell writes the
+   accent, everything in here reads it. Nothing below introduces a colour of its
+   own — a room is a lighting state, not a theme.
+
+   The recurring move in this file is *refusing the grid*. ONE DAY is a poster
+   wall, CREATE is pinned paper, VAULT is an edited page. All three could have
+   been `repeat(auto-fill, minmax(18rem, 1fr))` and all three would then have
+   read as the same dashboard with different words in it.
+   =========================================================================== */
+
+/* ---------------------------------------------------------------- shared */
+
+.wall-section { margin-top: clamp(2.25rem, 6vh, 3.5rem); }
+
+/*
+ * "I'm in." Used by ONE DAY and CREATE.
+ *
+ * A pill that fills with the room's colour once you are in it. Deliberately not a
+ * checkbox: raising your hand is the primary verb of both rooms and it should feel
+ * like pressing something, not like ticking a form.
+ */
+.hands {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.85rem 0.4rem 0.45rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.hands:hover { border-color: rgba(255, 255, 255, 0.34); }
+.hands:focus-visible { outline: 1px solid var(--cyan); outline-offset: 3px; }
+.hands:disabled { opacity: 0.6; cursor: wait; }
+
+.hands[data-mine="true"] {
+  border-color: color-mix(in srgb, var(--room) 60%, transparent);
+  background: color-mix(in srgb, var(--room) 16%, transparent);
+  color: var(--room);
+}
+
+.hands-mark {
+  display: grid;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.09);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1;
+  place-items: center;
+  transition: background 0.2s ease;
+}
+
+.hands[data-mine="true"] .hands-mark {
+  background: color-mix(in srgb, var(--room) 30%, transparent);
+}
+
+.hands-label { display: inline-flex; align-items: baseline; gap: 0.45rem; }
+
+.hands-count {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  letter-spacing: 0.14em;
+}
+
+.hands[data-mine="true"] .hands-count { color: inherit; opacity: 0.8; }
+
+/* Promotion buttons: the one action in a room that changes what a thing *is*. */
+.make-real { display: grid; gap: 0.6rem; justify-items: start; }
+
+.make-real-line {
+  max-width: 34ch;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.make-real.is-confirming {
+  padding: 0.9rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--room) 34%, transparent);
+  border-radius: 0.9rem;
+  background: rgba(20, 16, 40, 0.7);
+}
+
+/* A gate, not a disabled button: says what would unlock the action. */
+.poster-gate {
+  max-width: 34ch;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  font-style: italic;
+}
+
+/* Things that have left their room. Quiet by design — they are history now. */
+.promoted-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+
+.promoted-list a {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 0.2rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  transition: padding-left 0.22s ease, border-color 0.22s ease;
+}
+
+.promoted-list a:hover {
+  padding-left: 0.7rem;
+  border-color: color-mix(in srgb, var(--room) 40%, transparent);
+}
+
+.promoted-list a:focus-visible { outline: 1px solid var(--cyan); outline-offset: 2px; }
+
+.promoted-title {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  letter-spacing: 0.01em;
+  opacity: 0.72;
+}
+
+.promoted-list a:hover .promoted-title { opacity: 1; }
+
+.promoted-state {
+  flex: none;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+/* A row of named faces. Used wherever "who" is the answer, not "how many". */
+.face-list {
+  display: flex;
+  gap: 1.1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  flex-wrap: wrap;
+}
+
+.face-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.875rem;
+}
+
+/* ===========================================================================
+   ONE DAY — the poster wall
+   =========================================================================== */
+
+/*
+ * Masonry by CSS columns rather than grid.
+ *
+ * Posters are different heights because their text is different lengths, and a
+ * column flow lets that be true. Grid would force a row height and either clip the
+ * long ones or pad the short ones — and equal-height cards are precisely the "task
+ * card" reading this room is built to avoid.
+ */
+.wall {
+  columns: 3;
+  column-gap: clamp(0.75rem, 1.6vw, 1.15rem);
+}
+
+.poster {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: clamp(0.75rem, 1.6vw, 1.15rem);
+  padding: 1.35rem 1.4rem 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.35rem;
+  background:
+    linear-gradient(168deg, rgba(30, 24, 58, 0.72), rgba(15, 12, 32, 0.72));
+  /* Columns will happily slice a card in half across a column break. */
+  break-inside: avoid;
+  transition: border-color 0.25s ease, transform 0.25s ease;
+}
+
+/* The wash of room colour that makes a poster a poster and not a panel. */
+.poster::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    120% 70% at 12% 0%,
+    color-mix(in srgb, var(--room) 13%, transparent),
+    transparent 62%
+  );
+  pointer-events: none;
+}
+
+.poster > * { position: relative; z-index: 1; }
+
+.poster:hover { border-color: color-mix(in srgb, var(--room) 42%, transparent); }
+
+/* Weight varies the type size so the wall has a rhythm rather than a uniform beat. */
+.poster[data-weight="0"] .poster-title { font-size: clamp(1.5rem, 2.6vw, 2.1rem); }
+.poster[data-weight="1"] .poster-title { font-size: clamp(1.3rem, 2.1vw, 1.7rem); }
+.poster[data-weight="2"] .poster-title { font-size: clamp(1.7rem, 3vw, 2.5rem); }
+
+.poster-index {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.28em;
+}
+
+.poster-index span {
+  padding: 0.16rem 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--room) 16%, transparent);
+  color: var(--room);
+  letter-spacing: 0.1em;
+}
+
+.poster-link { display: block; }
+.poster-link:focus-visible { outline: 1px solid var(--cyan); outline-offset: 4px; }
+
+.poster-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 2.6vw, 2.1rem);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 0.94;
+  text-wrap: balance;
+}
+
+.poster-link:hover .poster-title { color: var(--room); }
+
+.poster-line {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.poster-foot {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: auto;
+  padding-top: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* The loud one. Two columns, and the type gets to be enormous. */
+.poster-headline {
+  display: grid;
+  gap: clamp(1.25rem, 3vw, 2.5rem);
+  margin-bottom: clamp(1.25rem, 3vh, 2rem);
+  padding: clamp(1.75rem, 3.5vw, 2.75rem);
+  border-radius: 0.5rem;
+  grid-template-columns: minmax(0, 1.85fr) minmax(0, 1fr);
+  align-items: start;
+}
+
+.poster-headline .poster-title {
+  font-size: clamp(2.4rem, 6.4vw, 5rem);
+  line-height: 0.88;
+}
+
+.poster-headline .poster-line {
+  max-width: 42ch;
+  color: var(--foreground);
+  font-size: clamp(0.9375rem, 1.6vw, 1.0625rem);
+  opacity: 0.84;
+}
+
+.poster-body { display: grid; gap: 0.9rem; min-width: 0; }
+
+.poster-side {
+  display: grid;
+  gap: 1.1rem;
+  padding-left: clamp(1rem, 2vw, 1.6rem);
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  align-content: start;
+}
+
+.poster-meta {
+  margin: 0;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.18em;
+  line-height: 1.9;
+  text-transform: uppercase;
+}
+
+@media (max-width: 1000px) {
+  .wall { columns: 2; }
+}
+
+@media (max-width: 760px) {
+  .wall { columns: 1; }
+  .poster-headline { grid-template-columns: minmax(0, 1fr); }
+  .poster-side {
+    padding-top: 1.1rem;
+    padding-left: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-left: 0;
+  }
+}
+
+/* ---------------------------------------------------------------- idea detail */
+
+.room-idea { max-width: 54rem; }
+
+.idea-sheet {
+  padding: clamp(1.5rem, 4vw, 2.75rem);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.5rem;
+  background: linear-gradient(168deg, rgba(30, 24, 58, 0.66), rgba(15, 12, 32, 0.66));
+}
+
+.idea-title {
+  margin: 0.4rem 0 0;
+  font-family: var(--font-display);
+  font-size: clamp(2.6rem, 8vw, 5.5rem);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 0.86;
+  text-wrap: balance;
+}
+
+.idea-line {
+  max-width: 46ch;
+  margin: 1.1rem 0 0;
+  font-size: clamp(1rem, 1.8vw, 1.15rem);
+  line-height: 1.5;
+  opacity: 0.86;
+}
+
+.idea-author {
+  margin: 1rem 0 0;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.idea-people {
+  margin-top: clamp(1.75rem, 4vh, 2.5rem);
+  padding-top: 1.4rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.idea-actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.25rem;
+  margin-top: clamp(1.75rem, 4vh, 2.5rem);
+  padding-top: 1.4rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  flex-wrap: wrap;
+}
+
+.idea-promoted { display: grid; gap: 0.9rem; justify-items: start; }
+
+.idea-promoted-line {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  letter-spacing: 0.01em;
+}
+
+/* ===========================================================================
+   ALIGN — the ledger of open questions
+   =========================================================================== */
+
+.align-list { display: grid; gap: clamp(1.75rem, 4vh, 2.75rem); }
+
+.plan-rows { display: grid; gap: 0.6rem; margin: 0; padding: 0; list-style: none; }
+
+/*
+ * A plan is a row, not a card.
+ *
+ * Rows stack into a ledger you read downward; cards in a grid ask you to compare
+ * them sideways. ALIGN is a queue of unfinished arguments, so downward is right.
+ */
+.plan-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 1.15rem 1.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-left: 2px solid color-mix(in srgb, var(--room) 55%, transparent);
+  border-radius: 0.2rem 0.9rem 0.9rem 0.2rem;
+  background: linear-gradient(100deg, rgba(32, 22, 52, 0.62), rgba(16, 13, 34, 0.5));
+  flex-wrap: wrap;
+  transition: border-color 0.22s ease, transform 0.22s ease, background 0.22s ease;
+}
+
+.plan-row:hover {
+  transform: translateX(3px);
+  border-color: rgba(255, 255, 255, 0.2);
+  border-left-color: var(--room);
+}
+
+.plan-row:focus-visible { outline: 1px solid var(--cyan); outline-offset: 3px; }
+
+.plan-row-main { min-width: 0; flex: 1 1 18rem; }
+
+.plan-row-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.4rem, 2.6vw, 1.95rem);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  text-wrap: balance;
+}
+
+/* The blockers are the headline of the row — bigger than the date, bigger than
+   the faces, because they are the only thing that needs anybody's attention. */
+.plan-blocking {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.65rem 0 0;
+  flex-wrap: wrap;
+}
+
+.plan-blocking-label {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.26em;
+}
+
+.plan-chip {
+  padding: 0.18rem 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--room) 45%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--room) 12%, transparent);
+  color: var(--room);
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.plan-chip.is-clear {
+  border-color: rgba(91, 224, 255, 0.5);
+  background: rgba(91, 224, 255, 0.12);
+  color: var(--cyan);
+}
+
+.plan-settled {
+  display: flex;
+  gap: 0.75rem;
+  margin: 0.6rem 0 0;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  flex-wrap: wrap;
+}
+
+.plan-settled strong { color: var(--cyan); font-weight: 400; }
+
+.plan-row-side {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+
+.plan-row-meta {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.plan-rows.is-locked .plan-row {
+  border-left-color: rgba(91, 224, 255, 0.55);
+}
+
+/* ---------------------------------------------------------------- plan room */
+
+.room-plan { max-width: 58rem; }
+
+.plan-head {
+  padding-bottom: 1.4rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.plan-title {
+  max-width: 18ch;
+  margin: 0.3rem 0 0;
+  font-family: var(--font-display);
+  font-size: clamp(2.3rem, 6.5vw, 4.25rem);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 0.88;
+}
+
+.plan-desc {
+  max-width: 50ch;
+  margin: 0.9rem 0 0;
+  font-size: 1rem;
+  line-height: 1.55;
+  opacity: 0.84;
+}
+
+.plan-origin {
+  margin: 0.9rem 0 0;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.plan-origin a {
+  border-bottom: 1px solid color-mix(in srgb, var(--room) 50%, transparent);
+  color: var(--room);
+}
+
+.plan-locked-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin: 1.25rem 0 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid rgba(91, 224, 255, 0.35);
+  border-radius: 0.7rem;
+  background: rgba(91, 224, 255, 0.08);
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  flex-wrap: wrap;
+}
+
+.plan-locked-banner span {
+  padding: 0.14rem 0.5rem;
+  border-radius: 999px;
+  background: var(--cyan);
+  color: var(--background);
+  font-weight: 700;
+  letter-spacing: 0.2em;
+}
+
+/* ---------------------------------------------------------------- blockers */
+
+.blockers { margin-top: clamp(1.75rem, 4vh, 2.5rem); }
+
+.blocker-list {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: blocker;
+}
+
+.blocker {
+  padding: 1.15rem 1.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 0.9rem;
+  background: rgba(21, 17, 42, 0.5);
+  transition: border-color 0.25s ease, background 0.25s ease, opacity 0.25s ease;
+}
+
+/*
+ * Resolved questions physically collapse.
+ *
+ * They lose their ballot, dim, and the answer moves up onto the question's line —
+ * so the page visibly shortens as the group agrees, and what is left is literally
+ * what is left. That is the whole interaction model of this room in one rule.
+ */
+.blocker[data-resolved="true"] {
+  border-color: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.015);
+  opacity: 0.55;
+}
+
+.blocker[data-resolved="true"]:hover { opacity: 0.85; }
+.blocker[data-optional="true"][data-resolved="false"] { opacity: 0.8; }
+
+.blocker-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.blocker-index {
+  color: var(--room);
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  letter-spacing: 0.18em;
+  opacity: 0.8;
+}
+
+.blocker-question {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.35rem, 2.6vw, 1.85rem);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 1;
+}
+
+.blocker[data-resolved="true"] .blocker-question {
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--room) 60%, transparent);
+  text-decoration-thickness: 1px;
+}
+
+.blocker-answer {
+  margin: 0 0 0 auto;
+  color: var(--cyan);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.blocker-optional {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+/* ---------------------------------------------------------------- ballot */
+
+.ballot { margin-top: 1rem; }
+
+.ballot-list {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  list-style: none;
+}
+
+.ballot-list li { display: flex; align-items: center; gap: 0.4rem; }
+
+/*
+ * The support bar *is* the row's background, not a separate meter beside it.
+ * Reading which option is winning should take no counting — the widest fill wins.
+ */
+.ballot-option {
+  position: relative;
+  display: flex;
+  overflow: hidden;
+  flex: 1;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.6rem;
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--foreground);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.ballot-option:hover { border-color: rgba(255, 255, 255, 0.26); }
+.ballot-option:focus-visible { outline: 1px solid var(--cyan); outline-offset: 2px; }
+.ballot-option:disabled { cursor: default; }
+
+.ballot-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--share, 0%);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--room) 24%, transparent),
+    color-mix(in srgb, var(--room) 7%, transparent)
+  );
+  transition: width 0.45s cubic-bezier(0.65, 0.01, 0.05, 0.99);
+  pointer-events: none;
+}
+
+.ballot-option[data-mine="true"] {
+  border-color: color-mix(in srgb, var(--room) 55%, transparent);
+}
+
+.ballot-option[data-leading="true"] .ballot-value { color: #fff; }
+
+.ballot-value {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9375rem;
+  overflow-wrap: anywhere;
+}
+
+.ballot-people { position: relative; display: flex; gap: 0.15rem; flex: none; }
+.ballot-people .avatar { box-shadow: 0 0 0 2px var(--background); }
+.ballot-people .avatar + .avatar { margin-left: -0.5rem; }
+
+.ballot-count {
+  position: relative;
+  flex: none;
+  min-width: 1.5rem;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  text-align: right;
+}
+
+.ballot-option[data-mine="true"] .ballot-count { color: var(--room); }
+
+.ballot-remove {
+  flex: none;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.5rem;
+  background: none;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.18s ease, border-color 0.18s ease;
+}
+
+.ballot-remove:hover { border-color: rgba(255, 92, 200, 0.5); color: var(--pink); }
+.ballot-remove:focus-visible { outline: 1px solid var(--cyan); outline-offset: 2px; }
+
+.ballot-add { display: flex; gap: 0.45rem; flex-wrap: wrap; }
+
+.ballot-add input {
+  flex: 1;
+  min-width: 10rem;
+  padding: 0.55rem 0.85rem;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  border-radius: 0.6rem;
+  outline: none;
+  background: none;
+  color: var(--foreground);
+  font: inherit;
+  font-size: 0.875rem;
+}
+
+.ballot-add input::placeholder { color: rgba(164, 159, 196, 0.5); }
+
+.ballot-add input:focus {
+  border-style: solid;
+  border-color: var(--room);
+}
+
+/* The native date picker's indicator is black-on-black by default. */
+.ballot-add input[type="date"]::-webkit-calendar-picker-indicator,
+.inline-form input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  filter: invert(1);
+  opacity: 0.5;
+}
+
+/* ---------------------------------------------------------------- attendance */
+
+.rsvp {
+  display: inline-flex;
+  gap: 0.3rem;
+  margin: 1rem 0 0;
+  padding: 0.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.rsvp-choice {
+  padding: 0.45rem 1rem;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.rsvp-choice:hover { color: var(--foreground); }
+.rsvp-choice:focus-visible { outline: 1px solid var(--cyan); outline-offset: 2px; }
+
+.rsvp-choice[data-active="true"] { color: #fff; }
+.rsvp-choice[data-active="true"][data-value="in"] { background: rgba(91, 224, 255, 0.2); color: var(--cyan); }
+.rsvp-choice[data-active="true"][data-value="maybe"] { background: rgba(255, 255, 255, 0.1); }
+.rsvp-choice[data-active="true"][data-value="out"] { background: rgba(255, 92, 200, 0.16); color: var(--pink); }
+
+.roster {
+  display: grid;
+  gap: clamp(1rem, 3vw, 2rem);
+  margin-top: 1.4rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+}
+
+.roster-label {
+  margin: 0 0 0.6rem;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.26em;
+}
+
+.roster-column ul { display: grid; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
+
+.roster-column li {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.875rem;
+}
+
+/* ---------------------------------------------------------------- locking */
+
+.plan-foot { margin-top: clamp(1.75rem, 4vh, 2.5rem); }
+
+.lock {
+  display: grid;
+  gap: 0.9rem;
+  justify-items: start;
+  padding: clamp(1.1rem, 2.5vw, 1.6rem);
+  border: 1px solid color-mix(in srgb, var(--room) 32%, transparent);
+  border-radius: 1rem;
+  background: rgba(22, 17, 44, 0.6);
+}
+
+.lock-blocked { border-style: dashed; border-color: rgba(255, 255, 255, 0.14); }
+
+.lock-done {
+  border-color: rgba(91, 224, 255, 0.3);
+  background: rgba(91, 224, 255, 0.05);
+}
+
+.lock-line {
+  max-width: 48ch;
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+.lock-line strong { color: var(--room); font-weight: 600; }
+.lock-done .lock-line { font-family: var(--font-display); font-size: 1.5rem; }
+
+/* ===========================================================================
+   CREATE — the studio wall
+   =========================================================================== */
+
+/*
+ * Pinned paper.
+ *
+ * Same column flow as ONE DAY, but the cards get a tape strip and a small rotation.
+ * The rotation is the point: things on a real wall are never quite straight, and a
+ * perfectly aligned grid of references is a Trello board with nicer type.
+ */
+.studio-wall {
+  columns: 3;
+  column-gap: clamp(1rem, 2vw, 1.5rem);
+}
+
+.pinned {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  margin-bottom: clamp(1.25rem, 2.4vw, 1.75rem);
+  padding: 1.5rem 1.35rem 1.2rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(170deg, rgba(34, 26, 62, 0.72), rgba(16, 13, 34, 0.72));
+  box-shadow: 0 16px 34px rgba(4, 3, 10, 0.32);
+  break-inside: avoid;
+  transition: transform 0.3s cubic-bezier(0.2, 0.7, 0.2, 1), border-color 0.25s ease;
+}
+
+.pinned[data-tilt="0"] { transform: rotate(-0.5deg); }
+.pinned[data-tilt="1"] { transform: rotate(0.45deg); }
+.pinned[data-tilt="2"] { transform: rotate(-0.25deg); }
+.pinned[data-tilt="3"] { transform: rotate(0.7deg); }
+
+/* Straightens under the cursor — the small physical pleasure of tidying a wall. */
+.pinned:hover {
+  transform: rotate(0deg) translateY(-3px);
+  border-color: color-mix(in srgb, var(--room) 45%, transparent);
+}
+
+.pinned-tape {
+  position: absolute;
+  top: -0.6rem;
+  left: 50%;
+  width: 4.5rem;
+  height: 1.2rem;
+  background: linear-gradient(
+    100deg,
+    rgba(255, 255, 255, 0.14),
+    rgba(255, 255, 255, 0.07)
+  );
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  transform: translateX(-50%) rotate(-2deg);
+}
+
+.pinned-source {
+  margin: 0;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.pinned-source a { color: var(--room); }
+.pinned-source a:hover { text-decoration: underline; }
+.pinned-source a:focus-visible { outline: 1px solid var(--cyan); outline-offset: 3px; }
+
+.pinned-link:focus-visible { outline: 1px solid var(--cyan); outline-offset: 4px; }
+
+.pinned-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.4rem, 2.4vw, 1.9rem);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 0.98;
+  text-wrap: balance;
+}
+
+.pinned-link:hover .pinned-title { color: var(--room); }
+
+.pinned-desc {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.pinned-status {
+  align-self: flex-start;
+  margin: 0;
+  padding: 0.16rem 0.5rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--room) 15%, transparent);
+  color: var(--room);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+/* Crew: a face with the job written under it, not an assignee chip. */
+.crew-strip {
+  display: flex;
+  gap: 0.85rem;
+  margin: 0.2rem 0 0;
+  padding: 0;
+  list-style: none;
+  flex-wrap: wrap;
+}
+
+.crew-strip li { display: grid; justify-items: center; gap: 0.18rem; }
+
+.crew-name {
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.crew-role {
+  color: var(--room);
+  font-family: var(--font-mono);
+  font-size: 0.4375rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+.pinned-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  margin-top: auto;
+  padding-top: 0.7rem;
+  flex-wrap: wrap;
+}
+
+.pinned-time {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.4375rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 1000px) { .studio-wall { columns: 2; } }
+@media (max-width: 720px) { .studio-wall { columns: 1; } }
+
+/* ---------------------------------------------------------------- creation room */
+
+.room-creation { max-width: 54rem; }
+
+.creation-head {
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.creation-title {
+  max-width: 18ch;
+  margin: 0.3rem 0 0;
+  font-family: var(--font-display);
+  font-size: clamp(2.3rem, 6.5vw, 4rem);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 0.88;
+}
+
+.creation-desc {
+  max-width: 50ch;
+  margin: 1rem 0 0;
+  font-size: 1rem;
+  line-height: 1.55;
+  opacity: 0.86;
+}
+
+/* The reference gets a frame of its own. It is where the idea came from. */
+.reference-card {
+  display: grid;
+  gap: 0.3rem;
+  max-width: 34rem;
+  margin-top: 1.4rem;
+  padding: 1rem 1.15rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-left: 2px solid var(--room);
+  border-radius: 0.2rem 0.8rem 0.8rem 0.2rem;
+  background: rgba(255, 255, 255, 0.03);
+  transition: background 0.22s ease, border-color 0.22s ease;
+}
+
+.reference-card:hover { background: rgba(255, 255, 255, 0.06); }
+.reference-card:focus-visible { outline: 1px solid var(--cyan); outline-offset: 3px; }
+
+.reference-label {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.4375rem;
+  letter-spacing: 0.3em;
+}
+
+.reference-host {
+  color: var(--room);
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  letter-spacing: 0.02em;
+}
+
+.reference-url {
+  overflow: hidden;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.creation-author {
+  margin: 1.1rem 0 0;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.creation-block { margin-top: clamp(1.75rem, 4vh, 2.5rem); }
+
+/* ---------------------------------------------------------------- ladder */
+
+/*
+ * The pipeline as a rung ladder. Horizontal, with a connecting rule behind the
+ * dots, so progress is a position rather than a column. Past rungs stay lit;
+ * future ones are only outlines.
+ */
+.ladder {
+  position: relative;
+  display: flex;
+  gap: 0.25rem;
+  overflow-x: auto;
+  padding-bottom: 0.4rem;
+  scrollbar-width: thin;
+}
+
+.ladder-step {
+  position: relative;
+  display: grid;
+  flex: 1 0 auto;
+  gap: 0.45rem;
+  padding: 0.5rem 0.6rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+  justify-items: center;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.ladder-step:hover { background: rgba(255, 255, 255, 0.04); color: var(--foreground); }
+.ladder-step:focus-visible { outline: 1px solid var(--cyan); outline-offset: 2px; }
+
+/* The rail between the dots. */
+.ladder-step::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  top: calc(0.5rem + 0.3rem);
+  right: 50%;
+  left: -50%;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.ladder-step:first-child::before { display: none; }
+
+.ladder-step[data-state="past"]::before,
+.ladder-step[data-state="now"]::before {
+  background: color-mix(in srgb, var(--room) 55%, transparent);
+}
+
+.ladder-dot {
+  position: relative;
+  z-index: 1;
+  width: 0.65rem;
+  height: 0.65rem;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 50%;
+  background: var(--background);
+  transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.ladder-step[data-state="past"] .ladder-dot {
+  border-color: var(--room);
+  background: color-mix(in srgb, var(--room) 60%, transparent);
+}
+
+.ladder-step[data-state="now"] .ladder-dot {
+  border-color: var(--room);
+  background: var(--room);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--room) 20%, transparent);
+}
+
+.ladder-label {
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.ladder-step[data-state="now"] { color: #fff; }
+
+/* ---------------------------------------------------------------- roles + crew */
+
+.roles { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+
+.role-chip {
+  padding: 0.35rem 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.role-chip:hover { border-color: rgba(255, 255, 255, 0.3); color: var(--foreground); }
+.role-chip:focus-visible { outline: 1px solid var(--cyan); outline-offset: 2px; }
+
+.role-chip[data-active="true"] {
+  border-color: color-mix(in srgb, var(--room) 60%, transparent);
+  background: color-mix(in srgb, var(--room) 16%, transparent);
+  color: var(--room);
+}
+
+.crew-list {
+  display: grid;
+  gap: 0.9rem;
+  margin: 0 0 1.4rem;
+  padding: 0;
+  list-style: none;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr));
+}
+
+.crew-list li { display: flex; align-items: center; gap: 0.7rem; }
+
+.crew-list-name { margin: 0; font-size: 0.9375rem; font-weight: 600; }
+
+.crew-list-role {
+  margin: 0.1rem 0 0;
+  color: var(--room);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.creation-join { display: grid; gap: 0.8rem; justify-items: start; }
+
+.creation-foot {
+  margin-top: clamp(1.75rem, 4vh, 2.5rem);
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ===========================================================================
+   VAULT — "don't browse files, enter a memory"
+   =========================================================================== */
+
+/* ---------------------------------------------------------------- featured */
+
+/*
+ * The featured memory is a band, not a card: full content width, tall, with the
+ * photograph *behind* the type rather than beside it. The two layers peeking out
+ * from under the cover make it read as a stack of prints — the single cheapest
+ * way to say "there is more in here" without a file count.
+ */
+.feature {
+  position: relative;
+  display: flex;
+  min-height: clamp(20rem, 46vh, 30rem);
+  align-items: flex-end;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 1.25rem;
+  background: linear-gradient(160deg, rgba(34, 26, 66, 0.8), rgba(14, 11, 30, 0.9));
+  isolation: isolate;
+}
+
+.feature:focus-visible { outline: 1px solid var(--cyan); outline-offset: 4px; }
+
+.feature-stack { position: absolute; inset: 0; z-index: 0; }
+
+.feature-cover,
+.feature-layer {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.feature-cover {
+  inset: 0;
+  transform: scale(1.02);
+  transition: transform 1.1s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.feature:hover .feature-cover { transform: scale(1.06); }
+
+/* The prints underneath, rotated out just enough to see an edge. */
+.feature-layer {
+  top: 4%;
+  right: -6%;
+  width: 46%;
+  height: 78%;
+  border-radius: 0.5rem;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  object-fit: cover;
+  opacity: 0.55;
+}
+
+.feature-layer[data-layer="0"] { transform: rotate(4deg); }
+.feature-layer[data-layer="1"] { right: -2%; transform: rotate(-3deg) scale(0.92); opacity: 0.35; }
+
+/* Type over photography needs a scrim, not a guess. */
+.feature-scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(0deg, rgba(8, 6, 18, 0.95) 6%, rgba(8, 6, 18, 0.45) 46%, rgba(8, 6, 18, 0.15) 80%),
+    linear-gradient(90deg, rgba(8, 6, 18, 0.85), transparent 68%);
+}
+
+.feature[data-empty="true"] .feature-scrim {
+  background: radial-gradient(
+    80% 70% at 15% 100%,
+    color-mix(in srgb, var(--room) 22%, transparent),
+    transparent 70%
+  );
+}
+
+.feature-text {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 44rem;
+  padding: clamp(1.5rem, 4vw, 3rem);
+}
+
+.feature-kicker {
+  margin: 0;
+  color: var(--room);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.3em;
+}
+
+.feature-kicker span { color: rgba(255, 255, 255, 0.6); }
+
+.feature-title {
+  margin: 0.8rem 0 0;
+  font-family: var(--font-display);
+  font-size: clamp(2.6rem, 8vw, 5.5rem);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 0.84;
+  text-wrap: balance;
+}
+
+.feature-quote {
+  max-width: 38ch;
+  margin: 1.1rem 0 0;
+  font-size: clamp(1rem, 2vw, 1.3rem);
+  font-style: italic;
+  line-height: 1.4;
+  opacity: 0.92;
+}
+
+.feature-quote cite {
+  display: block;
+  margin-top: 0.5rem;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  font-style: normal;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.feature-quote cite::before { content: "— "; }
+
+.feature-desc {
+  max-width: 44ch;
+  margin: 1rem 0 0;
+  font-size: 1rem;
+  line-height: 1.5;
+  opacity: 0.84;
+}
+
+.feature-foot {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin-top: 1.4rem;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  flex-wrap: wrap;
+}
+
+.feature-enter { color: var(--room); }
+.feature:hover .feature-enter { text-decoration: underline; }
+
+/* ---------------------------------------------------------------- capsule wall */
+
+/*
+ * Asymmetric on a five-step rhythm.
+ *
+ * Twelve columns with spans of 7/5/4/8/6 and small vertical offsets. It never
+ * settles into a readable row, which is the intent: you scan a photo grid, but
+ * you *travel* through a layout that keeps changing pace.
+ */
+.capsules {
+  display: grid;
+  gap: clamp(0.85rem, 2vw, 1.5rem);
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+}
+
+.capsule {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 0.9rem;
+  background: rgba(18, 14, 38, 0.6);
+  grid-column: span 4;
+  transition: border-color 0.3s ease, transform 0.4s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.capsule:hover { transform: translateY(-4px); border-color: color-mix(in srgb, var(--room) 45%, transparent); }
+.capsule:focus-visible { outline: 1px solid var(--cyan); outline-offset: 4px; }
+
+.capsule[data-shape="0"] { grid-column: span 7; }
+.capsule[data-shape="1"] { grid-column: span 5; }
+.capsule[data-shape="2"] { grid-column: span 4; margin-top: clamp(0rem, 3vw, 2.25rem); }
+.capsule[data-shape="3"] { grid-column: span 8; }
+.capsule[data-shape="4"] { grid-column: span 6; margin-top: clamp(0rem, 2vw, 1.25rem); }
+
+.capsule-image {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 16 / 10;
+  background: linear-gradient(150deg, rgba(60, 46, 110, 0.5), rgba(18, 14, 38, 0.5));
+}
+
+.capsule[data-shape="1"] .capsule-image,
+.capsule[data-shape="2"] .capsule-image { aspect-ratio: 4 / 5; }
+
+.capsule-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.01);
+  transition: transform 0.8s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.capsule:hover .capsule-image img { transform: scale(1.05); }
+
+.capsule-blank {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  color: rgba(255, 255, 255, 0.18);
+  font-family: var(--font-display);
+  font-size: 5rem;
+  place-items: center;
+}
+
+.capsule-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(0deg, rgba(12, 9, 26, 0.85), transparent 55%);
+}
+
+.capsule-text { padding: 1.1rem 1.25rem 1.2rem; }
+
+.capsule-date {
+  margin: 0 0 0.45rem;
+  color: var(--room);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.26em;
+}
+
+.capsule-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.4rem, 2.6vw, 2.1rem);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 0.96;
+  text-wrap: balance;
+}
+
+.capsule-fragment {
+  margin: 0.6rem 0 0;
+  overflow: hidden;
+  color: var(--muted);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 0.875rem;
+  font-style: italic;
+  line-height: 1.45;
+}
+
+.capsule-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  margin-top: 0.95rem;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.2em;
+}
+
+@media (max-width: 860px) {
+  .capsules { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .capsule,
+  .capsule[data-shape="0"],
+  .capsule[data-shape="1"],
+  .capsule[data-shape="2"],
+  .capsule[data-shape="3"],
+  .capsule[data-shape="4"] { grid-column: span 1; margin-top: 0; }
+}
+
+@media (max-width: 540px) {
+  .capsules { grid-template-columns: minmax(0, 1fr); }
+  .feature { min-height: 24rem; }
+}
+
+/* ---------------------------------------------------------------- capsule detail */
+
+.room-capsule { max-width: 72rem; }
+
+.capsule-hero {
+  position: relative;
+  display: flex;
+  min-height: clamp(18rem, 52vh, 32rem);
+  align-items: flex-end;
+  overflow: hidden;
+  border-radius: 1.25rem;
+  background: linear-gradient(160deg, rgba(40, 30, 78, 0.8), rgba(14, 11, 30, 0.9));
+}
+
+.capsule-hero-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.capsule-hero-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    0deg,
+    rgba(8, 6, 18, 0.96) 4%,
+    rgba(8, 6, 18, 0.5) 45%,
+    rgba(8, 6, 18, 0.12) 85%
+  );
+}
+
+.capsule-hero[data-empty="true"] .capsule-hero-scrim {
+  background: radial-gradient(
+    70% 60% at 20% 100%,
+    color-mix(in srgb, var(--room) 25%, transparent),
+    transparent 72%
+  );
+}
+
+.capsule-hero-text {
+  position: relative;
+  width: 100%;
+  padding: clamp(1.5rem, 4vw, 3rem);
+}
+
+.capsule-hero-title {
+  max-width: 16ch;
+  margin: 0.6rem 0 0;
+  font-family: var(--font-display);
+  font-size: clamp(2.6rem, 9vw, 6rem);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 0.84;
+  text-wrap: balance;
+}
+
+.capsule-hero-desc {
+  max-width: 46ch;
+  margin: 1rem 0 0;
+  font-size: clamp(1rem, 1.8vw, 1.15rem);
+  line-height: 1.5;
+  opacity: 0.88;
+}
+
+.capsule-hero-meta {
+  margin: 1.1rem 0 0;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.capsule-block { margin-top: clamp(2rem, 5vh, 3.25rem); }
+
+.capsule-nothing {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9375rem;
+  font-style: italic;
+}
+
+/* ---------------------------------------------------------------- tagging */
+
+.tagger {
+  display: flex;
+  gap: 0.9rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  flex-wrap: wrap;
+}
+
+.tagger-face {
+  display: grid;
+  padding: 0.5rem 0.35rem;
+  border: 0;
+  border-radius: 0.8rem;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  gap: 0.45rem;
+  justify-items: center;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.tagger-face:focus-visible { outline: 1px solid var(--cyan); outline-offset: 2px; }
+
+/* Untagged faces are desaturated — the tagged ones are who was actually there. */
+.tagger-face .avatar {
+  filter: grayscale(1);
+  opacity: 0.4;
+  transition: filter 0.25s ease, opacity 0.25s ease, box-shadow 0.25s ease;
+}
+
+.tagger-face:hover .avatar { opacity: 0.75; }
+
+.tagger-face[data-on="true"] { color: #fff; }
+
+.tagger-face[data-on="true"] .avatar {
+  filter: none;
+  opacity: 1;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    0 0 0 2px color-mix(in srgb, var(--room) 70%, transparent);
+}
+
+/* ---------------------------------------------------------------- quotes */
+
+.quotes {
+  display: grid;
+  gap: 1.1rem;
+  margin: 0 0 1.6rem;
+  padding: 0;
+  list-style: none;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr));
+}
+
+.quotes li { position: relative; }
+
+.quotes blockquote {
+  margin: 0;
+  padding: 1.1rem 1.25rem;
+  border-left: 2px solid color-mix(in srgb, var(--room) 60%, transparent);
+  background: rgba(255, 255, 255, 0.025);
+  border-radius: 0 0.8rem 0.8rem 0;
+  font-size: 1.0625rem;
+  font-style: italic;
+  line-height: 1.45;
+}
+
+.quotes cite {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  font-style: normal;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.quotes cite span { opacity: 0.6; }
+
+.note-delete {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 0;
+  border-radius: 0.4rem;
+  background: none;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1;
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 0.2s ease, color 0.2s ease;
+}
+
+.quotes li:hover .note-delete,
+.note-delete:focus-visible { opacity: 1; }
+.note-delete:hover { color: var(--pink); }
+
+.note-form { display: flex; gap: 0.5rem; max-width: 40rem; flex-wrap: wrap; }
+
+.note-form textarea {
+  flex: 1;
+  min-width: 14rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.8rem;
+  outline: none;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.note-form textarea:focus { border-color: var(--room); }
+.note-form textarea::placeholder { color: rgba(164, 159, 196, 0.5); }
+
+/* ---------------------------------------------------------------- contact sheet */
+
+.sheet {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 11rem), 1fr));
+  grid-auto-flow: dense;
+}
+
+.frame { position: relative; margin: 0; }
+
+/* Every fifth frame gets room to breathe; the rest fill in around it. */
+.frame[data-size="0"] { grid-column: span 2; grid-row: span 2; }
+.frame[data-size="3"] { grid-row: span 2; }
+
+.frame-open {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  cursor: zoom-in;
+  aspect-ratio: 1;
+  transition: border-color 0.22s ease;
+}
+
+.frame[data-size="0"] .frame-open,
+.frame[data-size="3"] .frame-open { aspect-ratio: auto; min-height: 100%; }
+
+.frame-open:hover { border-color: color-mix(in srgb, var(--room) 55%, transparent); }
+.frame-open:focus-visible { outline: 1px solid var(--cyan); outline-offset: 3px; }
+
+.frame-open img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.frame-open:hover img { transform: scale(1.04); }
+
+.frame-missing {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-height: 6rem;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.16em;
+  place-items: center;
+  text-transform: uppercase;
+}
+
+.frame-cover-flag {
+  position: absolute;
+  top: 0.45rem;
+  left: 0.45rem;
+  padding: 0.12rem 0.4rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--room) 80%, transparent);
+  color: #0b0a14;
+  font-family: var(--font-mono);
+  font-size: 0.4375rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+}
+
+/* ---------------------------------------------------------------- viewer */
+
+/*
+ * An overlay, not a route.
+ *
+ * VAULT keeps the app shell — that is the brief's hard requirement — so looking at
+ * a photograph must not navigate away from the room. Escape and arrow keys work,
+ * clicking the backdrop closes, and the page behind is locked from scrolling so
+ * dismissing returns you exactly where you were.
+ */
+.viewer {
+  position: fixed;
+  z-index: 60;
+  inset: 0;
+  display: grid;
+  padding: clamp(1rem, 3vw, 2.5rem);
+  background: rgba(6, 5, 14, 0.94);
+  backdrop-filter: blur(8px);
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 1rem;
+  animation: viewer-in 0.2s ease;
+}
+
+@keyframes viewer-in {
+  from { opacity: 0; }
+}
+
+.viewer-stage {
+  display: grid;
+  min-height: 0;
+  place-items: center;
+}
+
+.viewer-stage img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 0.5rem;
+  object-fit: contain;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+}
+
+.viewer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.viewer-count {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.2em;
+}
+
+.viewer-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+
+.viewer-delete { border-color: rgba(255, 92, 200, 0.4); color: var(--pink); }
+.viewer-delete:hover { border-color: var(--pink); background: rgba(255, 92, 200, 0.12); }
+
+/* ---------------------------------------------------------------- uploader */
+
+.uploader {
+  display: grid;
+  gap: 0.9rem;
+  max-width: 44rem;
+  justify-items: start;
+}
+
+.uploader-drop {
+  position: relative;
+  display: grid;
+  width: 100%;
+  gap: 0.3rem;
+  padding: 1.6rem 1.35rem;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.02);
+  cursor: pointer;
+  justify-items: center;
+  text-align: center;
+  transition: border-color 0.22s ease, background 0.22s ease;
+}
+
+.uploader-drop:hover {
+  border-color: color-mix(in srgb, var(--room) 55%, transparent);
+  background: color-mix(in srgb, var(--room) 6%, transparent);
+}
+
+.uploader-drop:focus-within { border-color: var(--cyan); }
+
+/* The input still receives clicks and keyboard focus — it is only visually gone. */
+.uploader-drop input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.uploader-drop-line {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  letter-spacing: 0.02em;
+}
+
+.uploader-drop-hint {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.uploader-tray {
+  display: flex;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  flex-wrap: wrap;
+}
+
+.uploader-tray img {
+  width: 4.5rem;
+  height: 4.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.5rem;
+  object-fit: cover;
+}
+
+.uploader-done {
+  margin: 0;
+  color: var(--cyan);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.06em;
+}
+
+/* ---------------------------------------------------------------- capsule admin */
+
+.capsule-admin-block { padding-bottom: 2rem; }
+
+.capsule-edit {
+  margin-top: 1.4rem;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.capsule-edit:hover { border-color: var(--room); color: var(--room); }
+.capsule-edit:focus-visible { outline: 1px solid var(--cyan); outline-offset: 4px; }
+
+.capsule-admin { display: grid; gap: 1.5rem; margin-top: 1.4rem; }
+
+/* ===========================================================================
+   MEMBERS
+   =========================================================================== */
+
+/* The invite: the loudest thing on the page, because it is why people come here. */
+.invite {
+  max-width: 78rem;
+  margin: 0 auto clamp(2rem, 5vh, 3rem);
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 1.1rem;
+  background: linear-gradient(150deg, rgba(32, 25, 62, 0.6), rgba(16, 13, 34, 0.6));
+}
+
+.invite-label {
+  margin: 0;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.3em;
+}
+
+.invite-code {
+  margin: 0.5rem 0 0;
+  background: linear-gradient(90deg, var(--violet), var(--pink), var(--cyan));
+  background-clip: text;
+  color: transparent;
+  font-family: var(--font-mono);
+  font-size: clamp(1.75rem, 6vw, 3rem);
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  /* Letterspacing pads the right edge; this keeps the gradient looking centred. */
+  text-indent: 0.22em;
+  user-select: all;
+}
+
+.invite-actions { display: flex; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap; }
+
+.invite-rotate { border-color: rgba(255, 92, 200, 0.35); color: var(--pink); }
+.invite-rotate:hover { border-color: var(--pink); }
+
+.invite-note {
+  margin: 0.9rem 0 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+/*
+ * The wall of faces.
+ *
+ * `auto-fill` with a wide minimum, so a group of four does not stretch into four
+ * enormous cards and a group of twelve still reads as a wall. The face is the
+ * largest element in each card; the role is a corner mark, not a column.
+ */
+.member-wall {
+  display: grid;
+  gap: clamp(0.75rem, 1.8vw, 1.25rem);
+  max-width: 78rem;
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+}
+
+.member-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 1.75rem 1.25rem 1.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 1.1rem;
+  background: linear-gradient(170deg, rgba(28, 22, 54, 0.55), rgba(16, 13, 34, 0.55));
+  text-align: center;
+  transition: border-color 0.25s ease, transform 0.25s ease;
+}
+
+.member-card:hover { transform: translateY(-3px); border-color: rgba(255, 255, 255, 0.2); }
+
+.member-card[data-me="true"] {
+  border-color: color-mix(in srgb, var(--violet) 45%, transparent);
+}
+
+.member-face { position: relative; }
+
+.member-face .avatar {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    0 10px 28px rgba(4, 3, 10, 0.45);
+}
+
+.member-identity { display: grid; gap: 0.2rem; }
+
+.member-name {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.45rem;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 1;
+}
+
+.member-you {
+  padding: 0.1rem 0.35rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.4375rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.member-handle {
+  margin: 0;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  letter-spacing: 0.14em;
+}
+
+.member-bio {
+  max-width: 28ch;
+  margin: 0.5rem auto 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.member-role {
+  position: absolute;
+  top: 0.8rem;
+  right: 0.8rem;
+  padding: 0.14rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.4375rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.member-role[data-role="owner"] { background: rgba(255, 92, 200, 0.18); color: var(--pink); }
+.member-role[data-role="admin"] { background: rgba(107, 91, 255, 0.22); color: #b9a7ff; }
+
+.member-controls {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: auto;
+  padding-top: 0.6rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.22s ease;
+}
+
+/* Administration is available, not advertised. */
+.member-card:hover .member-controls,
+.member-controls:focus-within { opacity: 1; }
+
+.member-confirm {
+  width: 100%;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.member-action {
+  padding: 0.28rem 0.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.member-action:hover { border-color: rgba(255, 255, 255, 0.35); color: var(--foreground); }
+.member-action:focus-visible { outline: 1px solid var(--cyan); outline-offset: 2px; }
+.member-action.is-danger:hover { border-color: var(--pink); color: var(--pink); }
+
+@media (hover: none) {
+  /* No hover to reveal on a touch screen. */
+  .member-controls { opacity: 1; }
+}
+
+/* ===========================================================================
+   SETTINGS
+   =========================================================================== */
+
+.room-settings { max-width: 46rem; }
+
+.settings { display: grid; gap: clamp(2rem, 5vh, 3rem); }
+
+.settings-block { display: grid; gap: 0.9rem; }
+
+.settings-form { display: grid; gap: 1rem; justify-items: start; }
+.settings-form form { display: grid; gap: 1rem; width: 100%; justify-items: start; }
+
+.field { display: grid; gap: 0.4rem; width: 100%; max-width: 30rem; }
+
+.field span {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+.field input,
+.field textarea {
+  width: 100%;
+  padding: 0.65rem 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 0.7rem;
+  outline: none;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 0.9375rem;
+  resize: vertical;
+}
+
+.field input:focus,
+.field textarea:focus {
+  border-color: var(--violet);
+  box-shadow: 0 0 0 3px rgba(107, 91, 255, 0.18);
+}
+
+.field input:disabled,
+.field textarea:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.settings-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.settings-note a { color: var(--violet); border-bottom: 1px solid rgba(107, 91, 255, 0.4); }
+
+.settings-code {
+  margin: 0;
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  font-size: 1.5rem;
+  letter-spacing: 0.24em;
+  user-select: all;
+}
+
+.settings-avatar { display: flex; align-items: center; gap: 1.1rem; flex-wrap: wrap; }
+
+.settings-avatar-pick { position: relative; overflow: hidden; cursor: pointer; }
+.settings-avatar-pick input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+/* ---------------------------------------------------------------- danger */
+
+/*
+ * Destructive actions.
+ *
+ * Typed confirmation rather than a second "are you sure", and the button stays
+ * disabled until the text matches. Both things this guards — a group's entire
+ * history, a capsule's photographs — are unrecoverable, and the friction should be
+ * proportional to that rather than to the developer's patience.
+ */
+.danger {
+  display: grid;
+  gap: 0.9rem;
+  justify-items: start;
+  padding: clamp(1.1rem, 2.5vw, 1.5rem);
+  border: 1px solid rgba(255, 92, 200, 0.22);
+  border-radius: 1rem;
+  background: rgba(255, 92, 200, 0.04);
+}
+
+.danger-line {
+  max-width: 52ch;
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+}
+
+.danger-line strong { color: var(--pink); }
+
+.danger-row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+.danger-row input {
+  min-width: 11rem;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 0.6rem;
+  outline: none;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--foreground);
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+}
+
+.danger-row input:focus { border-color: var(--pink); }
+
+.danger-btn { border-color: rgba(255, 92, 200, 0.45); color: var(--pink); }
+.danger-btn:hover:not(:disabled) { border-color: var(--pink); background: rgba(255, 92, 200, 0.14); }
+
+/* ===========================================================================
+   MOTION BUDGET
+   =========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .plan-row:hover,
+  .capsule:hover,
+  .member-card:hover,
+  .pinned:hover { transform: none; }
+
+  .pinned[data-tilt] { transform: none; }
+
+  .feature-cover,
+  .feature:hover .feature-cover,
+  .capsule-image img,
+  .capsule:hover .capsule-image img,
+  .frame-open img,
+  .frame-open:hover img { transform: none; transition: none; }
+
+  .ballot-fill { transition: none; }
+  .viewer { animation: none; }
+}
