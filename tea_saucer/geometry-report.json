@@ -1,0 +1,83 @@
+{
+  "units": "meters",
+  "axis": "Y-up",
+  "steam_included": false,
+  "meshes": {
+    "Cup": {
+      "vertices": 11937,
+      "triangles": 23874,
+      "watertight": true,
+      "consistent_winding": true,
+      "positive_volume": true,
+      "connected_components": 1,
+      "boundary_or_nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "bounds_m": [
+        [
+          -0.05,
+          0.004,
+          -0.05
+        ],
+        [
+          0.07784576416015625,
+          0.0777249984741211,
+          0.05
+        ]
+      ],
+      "volume_ml": 88.33163404783771
+    },
+    "Tea": {
+      "vertices": 4178,
+      "triangles": 8352,
+      "watertight": true,
+      "consistent_winding": true,
+      "positive_volume": true,
+      "connected_components": 1,
+      "boundary_or_nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "bounds_m": [
+        [
+          -0.046130000000000004,
+          0.013849999999999998,
+          -0.046130000000000004
+        ],
+        [
+          0.046130000000000004,
+          0.07255,
+          0.046130000000000004
+        ]
+      ],
+      "volume_ml": 322.17666340880646
+    },
+    "Saucer": {
+      "vertices": 6914,
+      "triangles": 13824,
+      "watertight": true,
+      "consistent_winding": true,
+      "positive_volume": true,
+      "connected_components": 1,
+      "boundary_or_nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "bounds_m": [
+        [
+          -0.08207500000000001,
+          0.0,
+          -0.08207500000000001
+        ],
+        [
+          0.08207500000000001,
+          0.013819444444444443,
+          0.08207500000000001
+        ]
+      ],
+      "volume_ml": 53.84369141841559
+    }
+  },
+  "pairwise_overlap_mm3": {
+    "Cup_Tea": 0,
+    "Cup_Saucer": 0.0,
+    "Tea_Saucer": 0
+  },
+  "total_triangles": 46050,
+  "glb_bytes": 1182876
+}

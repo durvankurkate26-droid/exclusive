@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EXCLUSIVE · Chai asset inspection</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#09080e;color:#ccc3d4;font-family:system-ui,sans-serif}canvas{display:block;width:100%;height:100%}aside{position:fixed;left:24px;top:22px;font-size:12px;letter-spacing:.12em;line-height:1.6}aside strong{display:block;color:#eee9f3;font-size:14px}nav{position:fixed;bottom:22px;left:24px;display:flex;gap:8px;flex-wrap:wrap}button{border:1px solid #ffffff24;background:#18141ed9;color:#ddd5e8;padding:9px 13px;border-radius:6px;cursor:pointer}button:focus-visible{outline:2px solid #cfa7e5}body[data-capture] aside,body[data-capture] nav{display:none}.status{position:fixed;right:24px;bottom:22px;font-size:11px;color:#888}body[data-capture] .status{display:none}
+</style>
+<script type="importmap">{"imports":{"three":"./viewer/three/three.module.js","three/addons/":"./viewer/three/addons/"}}</script>
+</head><body>
+<aside><strong>EXCLUSIVE / TEA</strong>Drag to orbit · Scroll to zoom<br>Physical asset · Preview lighting only</aside>
+<nav><button data-view="hero">Three-quarter</button><button data-view="front">Front</button><button data-view="side">Side</button><button data-view="top">Above</button><button id="neutral">Neutral light</button><button id="wire">Wireframe</button><button id="tea">Show / hide chai</button></nav>
+<div class="status" id="status">Loading GLB…</div>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const params=new URLSearchParams(location.search);
+if(params.has('capture'))document.body.dataset.capture='';
+const renderer=new THREE.WebGLRenderer({antialias:true,alpha:false,preserveDrawingBuffer:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.05;
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFShadowMap;
+document.body.prepend(renderer.domElement);
+const scene=new THREE.Scene();
+scene.background=new THREE.Color('#0b0911');
+const camera=new THREE.PerspectiveCamera(31,innerWidth/innerHeight,.002,10);
+const controls=new OrbitControls(camera,renderer.domElement);
+controls.target.set(.004,.042,0);
+controls.minDistance=.17;controls.maxDistance=.8;controls.maxPolarAngle=Math.PI*.94;
+controls.enableDamping=false;
+
+// Lighting lives ONLY in this viewer; the GLB contains no environment, lamps or floor.
+const envScene=new THREE.Scene();
+envScene.background=new THREE.Color(.12,.12,.12);
+function softbox(position,scale,color,intensity){
+ const plane=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({color:new THREE.Color(color).multiplyScalar(intensity),side:THREE.DoubleSide}));
+ plane.position.fromArray(position);plane.scale.set(...scale);plane.lookAt(0,0,0);envScene.add(plane);
+ return plane;
+}
+softbox([-1.5,2,1.8],[2.3,2.8,1],'#e9e2ee',2.6);
+softbox([1.6,1,-1.3],[.65,2.8,1],'#bcb8cf',1.4);
+softbox([.2,3,-.3],[2,1.7,1],'#eee5db',1.1);
+softbox([-2,.5,-1.5],[1.5,1.5,1],'#af9ebd',.8);
+const pmrem=new THREE.PMREMGenerator(renderer);
+scene.environment=pmrem.fromScene(envScene,.07,.1,10).texture;
+scene.environmentIntensity=.85;
+const ambient=new THREE.HemisphereLight('#ddd7eb','#312b39',.8);scene.add(ambient);
+const key=new THREE.DirectionalLight('#efe6ff',1.8);key.position.set(-.16,.27,.18);key.castShadow=true;
+key.shadow.mapSize.set(2048,2048);Object.assign(key.shadow.camera,{left:-.18,right:.18,top:.18,bottom:-.18,near:.01,far:1});
+key.shadow.normalBias=.00005;key.shadow.bias=-.000005;key.shadow.radius=5;scene.add(key);
+const rim=new THREE.DirectionalLight('#bedee5',.6);rim.position.set(.16,.08,-.1);scene.add(rim);
+const fill=new THREE.DirectionalLight('#d6a3cf',.5);fill.position.set(-.1,.07,-.15);scene.add(fill);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(20,20),new THREE.MeshStandardMaterial({color:'#09080e',roughness:1,metalness:0,envMapIntensity:0}));
+ground.rotation.x=-Math.PI/2;ground.position.y=-.0001;ground.receiveShadow=true;scene.add(ground);
+
+let model,wire=false,neutral=false;
+function draw(){renderer.render(scene,camera)}
+function setView(name){
+ const positions={hero:[.16,.147,.285],front:[0,.085,.34],side:[.32,.09,0],top:[.11,.28,.15],underside:[.12,-.20,.20]};
+ camera.position.fromArray(positions[name]||positions.hero);
+ controls.target.set(.004,.040,0);controls.update();draw();
+}
+setView('hero');
+controls.addEventListener('change',draw);
+window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);draw()});
+document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>setView(b.dataset.view));
+document.querySelector('#wire').onclick=()=>{wire=!wire;model.traverse(o=>{if(o.isMesh)o.material.wireframe=wire});draw()};
+document.querySelector('#tea').onclick=()=>{const tea=model.getObjectByName('Tea');tea.visible=!tea.visible;draw()};
+function setNeutral(value){neutral=value;key.color.set(neutral?'#ffffff':'#efe6ff');rim.color.set(neutral?'#ffffff':'#bedee5');fill.color.set(neutral?'#ffffff':'#d6a3cf');ambient.color.set(neutral?'#ffffff':'#ddd7eb');scene.background.set(neutral?'#777777':'#0b0911');ground.material.color.set(neutral?'#777777':'#09080e');draw()}
+document.querySelector('#neutral').onclick=()=>setNeutral(!neutral);
+window.assetPreview={setView,setNeutral,render:draw,scene,camera,renderer};
+new GLTFLoader().load('./exclusive-tea.glb',gltf=>{
+ model=gltf.scene;scene.add(model);
+ let triangles=0;
+ model.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;triangles+=o.geometry.index.count/3;}});
+ document.querySelector('#status').textContent=`${triangles.toLocaleString()} triangles · meters · Y up`;
+ window.assetPreview.model=model;
+ draw();window.assetReady=true;
+},undefined,error=>{console.error(error);document.querySelector('#status').textContent='Unable to load GLB. Serve this folder over localhost.';window.assetError=String(error)});
+</script></body></html>

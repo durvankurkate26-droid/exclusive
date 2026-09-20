@@ -1,7 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useRef, type CSSProperties } from "react";
-import { gsap } from "@/lib/animations/gsap";
+import { gsap, pinnedTail } from "@/lib/animations/gsap";
 import { chatFragments, type ChatFragment } from "@/lib/constants/landing";
 
 /**
@@ -111,6 +111,19 @@ export function SocialChaosScene() {
           { display: "none" },
         );
 
+        /**
+         * The opening fragments arrive *before* the pin.
+         *
+         * Every fragment used to be authored inside the pinned timeline, so at pin
+         * progress 0 -- the exact scroll position where this section takes the frame --
+         * the viewport held one soft glow and nothing else. One notch of scroll into a
+         * new scene with nothing on screen is the definition of a slide change.
+         *
+         * These two run on the approach band instead, so the pin inherits a field that
+         * is already populated and the pinned timeline only ever adds to it.
+         */
+        const PREROLL = 3;
+
         const restScale = (fragment: ChatFragment) => (mobile ? fragment.mscale : fragment.scale);
         const restX = (fragment: ChatFragment) =>
           ((mobile ? fragment.mx : fragment.x) / 100) * window.innerWidth;
@@ -154,27 +167,47 @@ export function SocialChaosScene() {
         // is what reads as a page switch. This band runs while the section is still
         // travelling up, so the atmosphere and the label are already present by the
         // time the pin takes over and the pinned timeline starts from something.
-        gsap.fromTo(
-          [glow, label],
-          { autoAlpha: 0 },
-          {
-            autoAlpha: (i) => (i === 0 ? (mobile ? 0.5 : 0.7) : 1),
-            ease: "none",
-            scrollTrigger: {
-              trigger: section,
-              start: "top bottom",
-              end: "top top",
-              scrub: 0.6,
-              invalidateOnRefresh: true,
-            },
+        //
+        // The stage as a whole rides the same band. Without it the vignette -- which is
+        // near-opaque at its outer edge -- crept over the departing hero at full strength
+        // and read as a dark bar sliding up the screen.
+        const approach = gsap.timeline({
+          scrollTrigger: {
+            trigger: section,
+            start: "top bottom",
+            end: "top top",
+            scrub: 0.6,
+            invalidateOnRefresh: true,
           },
-        );
+        });
+
+        approach
+          // The stage as a whole rides this band. Without it the vignette -- which is
+          // near-opaque at its outer edge -- crept over the departing hero at full
+          // strength and read as a dark bar sliding up the screen.
+          .fromTo(stage, { autoAlpha: 0 }, { autoAlpha: 1, ease: "none", duration: 0.42 }, 0)
+          .fromTo(
+            glow,
+            { autoAlpha: 0, scale: 0.55 },
+            { autoAlpha: mobile ? 0.5 : 0.7, scale: 1, ease: "none", duration: 1 },
+            0,
+          )
+          .fromTo(label, { autoAlpha: 0 }, { autoAlpha: 1, ease: "none", duration: 0.5 }, 0.26)
+          // The ambient push used to live at the head of the pinned timeline, which
+          // meant the field jumped from rest to 1.08 the instant the pin engaged. It
+          // resolves across the approach now and the pin inherits it already settled.
+          .fromTo(
+            field,
+            { scale: mobile ? 1.06 : 1.11, y: mobile ? 14 : 30 },
+            { scale: 1, y: 0, ease: "none", duration: 1 },
+            0,
+          );
 
         const timeline = gsap.timeline({
           scrollTrigger: {
             trigger: section,
             start: "top top",
-            end: () => `+=${Math.round(window.innerHeight * (mobile ? 1.8 : 2.4))}`,
+            end: () => `+=${Math.round(window.innerHeight * (mobile ? 1.7 : 2.1))}`,
             pin: true,
             scrub: 0.65,
             anticipatePin: 1,
@@ -187,22 +220,8 @@ export function SocialChaosScene() {
           },
         });
 
-        // A continuous ambient push across the whole entry and peak. Something on screen
-        // is always moving, which is what removes the dead-scroll feeling.
-        timeline.fromTo(
-          field,
-          { scale: mobile ? 1.04 : 1.08, y: mobile ? 10 : 24 },
-          { scale: 1, y: 0, ease: "none", duration: 0.7 },
-          0,
-        );
-        timeline.fromTo(
-          glow,
-          { scale: 0.55 },
-          { scale: 1, ease: "none", duration: 0.55 },
-          0.02,
-        );
-
-        live.forEach(({ fragment, card }) => {
+        live.forEach(({ fragment, card }, index) => {
+          const preroll = index < PREROLL;
           const scale = restScale(fragment);
           // Recomputed per refresh rather than captured, so the entry offsets survive a
           // resize inside the same breakpoint.
@@ -222,7 +241,13 @@ export function SocialChaosScene() {
           const peakDuration = Math.max(0.06, 0.655 - peakAt);
 
           // --- entry: its own direction, easing, duration, depth and wipe per fragment ---
-          timeline.fromTo(
+          // Pre-roll fragments land on the approach; everything else on the pin. The
+          // later `to` tweens capture their start values lazily, on first render, so a
+          // fragment placed by the approach is already at rest by the time the pinned
+          // drift reads it -- no `set` and no double ownership.
+          const host = preroll ? approach : timeline;
+          const entryAt = preroll ? 0.46 + index * 0.16 : fragment.at;
+          host.fromTo(
             card,
             {
               x: () => from().x * travel,
@@ -245,11 +270,11 @@ export function SocialChaosScene() {
               scale,
               clipPath: RESTING_CLIP[fragment.enter],
               autoAlpha: restAlpha(fragment),
-              duration: entryDuration,
+              duration: preroll ? 0.3 : entryDuration,
               ease: ENTRY_EASE[fragment.enter],
               immediateRender: false,
             },
-            fragment.at,
+            entryAt,
           );
 
           // --- peak chaos: depth-layered parallax. Near layers drift further, and the
@@ -353,6 +378,37 @@ export function SocialChaosScene() {
           payoff,
           { y: () => -window.innerHeight * 0.05, duration: 0.04, ease: "none" },
           0.96,
+        );
+
+        // DEPARTURE. The pin releases one viewport before the next section owns the
+        // frame, and that viewport used to be dead scroll: the payoff line slid off the
+        // top and left a bare band behind it. ENTER THE ROOMS is pulled up over this
+        // section by a negative margin now, and this is the other half of that handoff --
+        // the scene dims and lifts out while the next one rises through it.
+        //
+        // `fromTo` with an explicit start and `immediateRender: false` makes this
+        // independent of build order: it does not have to read whatever the approach
+        // last left on the stage.
+        gsap.fromTo(
+          stage,
+          { autoAlpha: 1, y: 0 },
+          {
+            autoAlpha: 0,
+            y: () => -window.innerHeight * 0.07,
+            ease: "none",
+            immediateRender: false,
+            scrollTrigger: {
+              trigger: section,
+              ...pinnedTail(() => timeline.scrollTrigger),
+              scrub: 0.6,
+              invalidateOnRefresh: true,
+              // Refreshed last. pinnedTail() reads the pin-spacer's height, and the spacer
+              // only grows to the pin distance during the pinned trigger's own refresh --
+              // at default priority this measured the un-pinned box and put the fade a
+              // few hundred pixels into the scene instead of after it.
+              refreshPriority: -1,
+            },
+          },
         );
       }, section);
 

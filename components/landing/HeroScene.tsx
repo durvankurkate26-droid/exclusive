@@ -73,6 +73,10 @@ function useTrailAllowed() {
 export function HeroScene() {
   const sectionRef = useRef<HTMLElement>(null);
   const [introDone, setIntroDone] = useState(false);
+  // The hero is pinned, so a trail item spawned here does not scroll away with the
+  // section -- it sits in the corner while the next scene arrives. The trail is armed
+  // only while the word is still composed, and dropped the moment the door opens.
+  const [heroHolding, setHeroHolding] = useState(true);
   const trailAllowed = useTrailAllowed();
 
   useLayoutEffect(() => {
@@ -244,47 +248,57 @@ export function HeroScene() {
             scrollTrigger: {
               trigger: section,
               start: "top top",
-              end: "+=135%",
+              end: "+=150%",
               pin: true,
               scrub: 0.65,
               anticipatePin: 1,
               invalidateOnRefresh: true,
+              // Photographs parked by the cursor must not outlive the word they belong to.
+              onUpdate: (self) => setHeroHolding(self.progress < 0.12),
             },
           });
 
           exit
-            .to("[data-hero-meta],[data-micro]", { autoAlpha: 0, y: -12, duration: 0.2 }, 0)
-            .to("[data-hero-enter]", { autoAlpha: 0, y: -12, duration: 0.18 }, 0.02)
+            .to("[data-hero-meta],[data-micro]", { autoAlpha: 0, y: -12, duration: 0.22 }, 0.02)
+            .to("[data-hero-enter]", { autoAlpha: 0, y: -12, duration: 0.2 }, 0.04)
             .to("[data-hero-cue]", { autoAlpha: 0, duration: 0.16 }, 0.02);
 
           // A door swinging, not a word exploding.
           //
-          // The whole word holds composed through the first tenth of the pin -- only its
-          // tracking opens, which reads as pressure building rather than as movement.
-          // Then the OUTER letters release first and the inner ones follow, so the word
-          // parts from its edges inward and the centre is the last thing to give way.
-          // `power2.in` keeps the first half of each letter's travel almost invisible and
-          // spends the distance late, which is what makes it read as a hinge.
-          exit.fromTo(
-            "[data-word]",
-            { letterSpacing: "0.01em" },
-            { letterSpacing: "0.09em", duration: 0.3, ease: "none" },
-            0,
-          );
+          // The endpoints below are close to what they were; what changed is *when* the
+          // distance is spent. Tracking used to open from .01em to .09em across the first
+          // 30% of the pin while the letters were already translating, so two spreads
+          // compounded early and the word appeared to burst on the first scroll notch.
+          //
+          //   0.00-0.30  pressure. Tracking creeps .01em -> .032em; nothing else moves.
+          //   0.30-0.60  the hinge opens. Outer letters lead, the centre gives way last.
+          //   0.60-0.85  the statement rises through the gap the centre letter left.
+          //   0.85-1.00  what is left of the word clears the frame.
+          //
+          // `power2.in` over a band starting at 0.16 buys that shape: about a fifth of
+          // the travel is spent by 60%, and the rest of it in the final quarter.
+          exit
+            .fromTo(
+              "[data-word]",
+              { letterSpacing: "0.01em" },
+              { letterSpacing: "0.032em", duration: 0.3, ease: "none" },
+              0,
+            )
+            .to("[data-word]", { letterSpacing: "0.078em", duration: 0.56, ease: "power2.in" }, 0.3);
 
           LETTERS.forEach((L, i) => {
             const from = i - 4;
             const rank = Math.abs(from);                 // 0 centre .. 4 outermost
-            const at = 0.1 + (4 - rank) * 0.03;          // outer letters go first
-            const span = 0.86 - at;
+            const at = 0.16 + (4 - rank) * 0.025;        // outer letters go first
+            const span = 0.9 - at;
 
             exit.to(
               letters[i],
               {
-                x: () => vw(from * 7) * d,
-                y: () => vh(rank * 1.5 - 2) * d,
-                rotation: from * 1.2 * d,
-                z: from === 0 ? -480 * d : -50 * d,
+                x: () => vw(from * 6.4) * d,
+                y: () => vh(rank * 1.2 - 1.6) * d,
+                rotation: from * 0.9 * d,
+                z: from === 0 ? -400 * d : -40 * d,
                 autoAlpha: from === 0 ? 0 : 1,
                 duration: span,
                 ease: "power2.in",
@@ -294,11 +308,11 @@ export function HeroScene() {
             exit.to(
               letters[i].querySelectorAll("[data-slice]"),
               {
-                xPercent: (s) => (s === 0 ? -13 : 13) * d,
+                xPercent: (s) => (s === 0 ? -11 : 11) * d,
                 duration: span * 0.9,
                 ease: "power1.in",
               },
-              at + 0.06,
+              at + 0.08,
             );
           });
 
@@ -307,19 +321,29 @@ export function HeroScene() {
             .fromTo(
               "[data-door]",
               { autoAlpha: 0, scaleX: 0.2, scaleY: 0.35 },
-              { autoAlpha: 1, scaleX: 1, scaleY: 1, duration: 0.4, ease: "none" },
-              0.3,
+              { autoAlpha: 1, scaleX: 1, scaleY: 1, duration: 0.38, ease: "none" },
+              0.42,
             )
+            // The next beat arrives *through* the word rather than after it: the
+            // statement is already legible while four letters are still on screen.
             .fromTo(
               "[data-hero-statement]",
-              { autoAlpha: 0, y: "23vh" },
-              { autoAlpha: 1, y: 0, duration: 0.4, ease: "none" },
-              0.4,
+              { autoAlpha: 0, y: "20vh" },
+              { autoAlpha: 1, y: 0, duration: 0.27, ease: "none" },
+              0.58,
             )
-            .to("[data-ghosts]", { autoAlpha: 0.35, scale: 1.18, duration: 0.6, ease: "none" }, 0.2)
-            .to("[data-word]", { autoAlpha: 0, duration: 0.22, ease: "none" }, 0.78)
-            .to("[data-door]", { autoAlpha: 0, scale: 1.6, duration: 0.2, ease: "none" }, 0.8)
-            .to("[data-hero-statement]", { y: -18, duration: 0.2, ease: "none" }, 0.78);
+            .to("[data-ghosts]", { autoAlpha: 0.35, scale: 1.18, duration: 0.62, ease: "none" }, 0.24)
+            // The statement rises *through* the parted word, which means for a quarter
+            // of the pin the two share the frame. Measured at 90% of the pin, two
+            // letters were covering a third of the sentence each. The word steps back
+            // to 30% as the statement arrives -- letters leaving, sentence landing --
+            // and the statement carries its own scrim (see .hero-statement::before).
+            .to("[data-word]", { opacity: 0.3, duration: 0.26, ease: "none" }, 0.58)
+            .to("[data-word]", { autoAlpha: 0, duration: 0.14, ease: "none" }, 0.86)
+            .to("[data-door]", { autoAlpha: 0, scale: 1.6, duration: 0.16, ease: "none" }, 0.84)
+            // The hero does not stop dead one frame before the handoff: the statement is
+            // already drifting the way the page is about to move when the pin releases.
+            .to("[data-hero-statement]", { y: "-7vh", duration: 0.14, ease: "none" }, 0.86);
 
             // Sections below were measured without the hero's pin-spacer, so their
             // triggers need re-measuring now that it exists.
@@ -408,9 +432,6 @@ export function HeroScene() {
             ))}
           </span>
         </h1>
-        <p data-hero-meta className="hero-footnote">
-          ↳ your friend photos scroll through here <span>[drop-in later]</span>
-        </p>
       </div>
 
       <div data-hero-statement className="hero-statement">
@@ -435,7 +456,8 @@ export function HeroScene() {
           items={TRAIL_ITEMS}
           itemSize={150}
           trailLength={5}
-          spawnDistance={introDone ? 130 : 1e6}
+          enabled={introDone && heroHolding}
+          spawnDistance={130}
           rotationRange={13}
           className="pointer-events-none absolute inset-0 z-[2]"
         />

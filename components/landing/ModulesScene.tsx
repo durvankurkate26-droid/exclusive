@@ -1,8 +1,9 @@
 "use client";
 
 import { useLayoutEffect, useRef } from "react";
-import { gsap } from "@/lib/animations/gsap";
+import { gsap, pinnedTail } from "@/lib/animations/gsap";
 import { rooms } from "@/lib/constants/landing";
+import { registerRoomTargets } from "@/lib/rooms-nav";
 
 /**
  * ENTER THE ROOMS -- a five-scene scroll story.
@@ -28,16 +29,26 @@ import { rooms } from "@/lib/constants/landing";
  */
 const L = {
   tea: 0,
-  teaToCreate: 0.13,
-  create: 0.2,
-  createToOneDay: 0.33,
-  oneDay: 0.4,
-  oneDayToAlign: 0.53,
-  align: 0.6,
-  alignToVault: 0.73,
-  vault: 0.82,
-  finale: 0.935,
+  teaToCreate: 0.145,
+  create: 0.225,
+  createToOneDay: 0.355,
+  oneDay: 0.435,
+  oneDayToAlign: 0.565,
+  align: 0.635,
+  alignToVault: 0.755,
+  vault: 0.83,
+  finale: 0.93,
 } as const;
+
+/**
+ * Where each room is *itself*.
+ *
+ * A label marks the moment a scene starts arriving; it is not the moment the scene is
+ * worth looking at. These are the composed peaks -- after the scene's furniture has
+ * landed and before the next transition starts pulling it apart -- and they are what
+ * the menu navigates to. Keyed by index into `rooms`, which runs in story order.
+ */
+const PEAK = [0.125, 0.33, 0.557, 0.748, 0.922] as const;
 
 /**
  * Scene furniture coordinates, as vw/vh offsets from the centre of the viewport.
@@ -64,9 +75,13 @@ const ONE_DAY_FRAGMENTS = [
   { text: "ROAD TRIP", x: 33, y: -21, s: 0.88 },
   { text: "KARTING", x: 39, y: 3, s: 0.8 },
   { text: "CAFÉ", x: 34, y: 21, s: 0.76 },
-  { text: "PHOTOSHOOT", x: 6, y: 27, s: 0.84 },
+  // These two used to sit at (6,27) and (18,24), which is exactly where the postcard
+  // prints its own GOA / coordinates label. At 1366 they cleared its bottom edge by a
+  // few pixels; at 1024 and below they landed straight on top of it. Pushed out and
+  // down so they orbit the card at every stage size rather than only the widest one.
+  { text: "PHOTOSHOOT", x: 2, y: 31, s: 0.84 },
   { text: "15.2993° N", x: 2, y: -6, s: 0.6 },
-  { text: "SOMEDAY", x: 18, y: 24, s: 0.58 },
+  { text: "SOMEDAY", x: 25, y: 29, s: 0.58 },
 ];
 
 /** ALIGN resolves into two flanking columns either side of the locked plan block.
@@ -99,7 +114,13 @@ export function ModulesScene() {
 
     const media = gsap.matchMedia();
 
-    /** The whole story. `d` scales every travel distance for smaller stages. */
+    /**
+     * The whole story. `d` scales every travel distance -- and, since this pass, the
+     * morph's own dimensions -- for smaller stages. Scaling only the distances made the
+     * object relatively *larger* on a narrow stage: at 768 the ONE DAY postcard was
+     * 26vw wide and 46vh tall while everything orbiting it had been pulled 30% closer,
+     * so the orbit ended up inside the card.
+     */
     const buildStage = (d: number, scroll: number) => {
       const stage = section.querySelector<HTMLElement>("[data-stage]");
       const morph = section.querySelector<HTMLElement>("[data-morph]");
@@ -123,8 +144,8 @@ export function ModulesScene() {
         [L.tea, L.create + 0.01],
         [L.create - 0.01, L.oneDay + 0.01],
         [L.oneDay - 0.01, L.align + 0.01],
-        [L.align - 0.01, L.vault - 0.005],
-        [L.vault - 0.02, L.finale + 0.065],
+        [L.align - 0.01, L.vault + 0.025],
+        [L.vault - 0.02, L.finale + 0.05],
       ];
 
       // Resting state: every scene off, the object as a TEA capsule.
@@ -135,6 +156,7 @@ export function ModulesScene() {
       gsap.set(q('[data-shard]'), { opacity: 0, scale: 0.8 });
       gsap.set(q('[data-frag]'), { opacity: 0, scale: 0.7 });
       gsap.set(q('[data-block]'), { opacity: 0 });
+      gsap.set(q('[data-lock]'), { opacity: 0, scaleX: 0, transformOrigin: '50% 50%' });
       gsap.set(q('[data-photo]'), { opacity: 0 });
       gsap.set(q('[data-face]'), { opacity: 0 });
       gsap.set(one('[data-face="tea"]'), { opacity: 1 });
@@ -146,8 +168,8 @@ export function ModulesScene() {
       gsap.set(morph, {
         xPercent: -50,
         yPercent: -50,
-        width: () => Math.min(260, vw(22)),
-        height: () => Math.min(74, vh(9)),
+        width: () => Math.min(260, vw(22)) * d,
+        height: () => Math.min(74, vh(9)) * d,
         borderRadius: 26,
         x: () => vw(19) * d,
         y: () => vh(-2) * d,
@@ -160,7 +182,24 @@ export function ModulesScene() {
       // APPROACH. Everything here is gated to autoAlpha 0 until the pin engages, so the
       // story used to scroll in as a blank screen and then snap into TEA. Bringing the
       // atmosphere and the chapter rail up during the travel means the pin inherits a
-      // scene that is already breathing instead of one that switches on.
+      // scene that is already breathing instead of one that switches on. The stage
+      // itself rides the same band so nothing this section paints arrives at full
+      // strength over the scene it is taking over from.
+      gsap.fromTo(
+        stage,
+        { autoAlpha: 0 },
+        {
+          autoAlpha: 1,
+          ease: "none",
+          scrollTrigger: {
+            trigger: section,
+            start: "top bottom",
+            end: "top 22%",
+            scrub: 0.6,
+            invalidateOnRefresh: true,
+          },
+        },
+      );
       gsap.fromTo(
         [atmos[0], section.querySelector("[data-chapters]")],
         { autoAlpha: 0 },
@@ -226,21 +265,22 @@ export function ModulesScene() {
             y: (i) => vh(TEA_SHARDS[i].y) * d,
             opacity: (i) => 1 - TEA_SHARDS[i].blur * 0.13,
             scale: (i) => TEA_SHARDS[i].s,
-            duration: 0.1,
-            stagger: 0.012,
+            duration: 0.07,
+            stagger: 0.008,
             ease: "power3.out",
           },
-          L.tea + 0.01,
+          L.tea + 0.005,
         )
         .fromTo(
           q('[data-typing] b'),
           { scale: 0.3, opacity: 0.2 },
-          { scale: 1, opacity: 1, duration: 0.04, stagger: 0.012, ease: "back.out(2.4)" },
-          L.tea + 0.07,
+          { scale: 1, opacity: 1, duration: 0.03, stagger: 0.008, ease: "back.out(2.4)" },
+          L.tea + 0.06,
         )
         // Parked just under the capsule rather than at a fixed viewport offset, which
         // previously dropped them straight into the TEA title's bounding box.
         .set(q('[data-typing]'), { x: () => vw(19) * d, y: () => vh(6) * d }, 0);
+
       chapter(0, L.tea);
 
       // ------------------------------------------------ TEA -> CREATE
@@ -254,8 +294,8 @@ export function ModulesScene() {
             y: (i) => vh(TEA_SHARDS[i].y * 2.4) * d,
             opacity: 0,
             scale: 0.5,
-            duration: 0.07,
-            stagger: 0.008,
+            duration: 0.05,
+            stagger: 0.006,
             ease: "power2.in",
           },
           L.teaToCreate,
@@ -269,8 +309,8 @@ export function ModulesScene() {
         .to(
           morph,
           {
-            width: () => Math.min(560, vw(40)),
-            height: () => Math.min(316, vh(38)),
+            width: () => Math.min(560, vw(40)) * d,
+            height: () => Math.min(316, vh(38)) * d,
             borderRadius: 14,
             x: () => vw(6) * d,
             y: () => vh(4) * d,
@@ -324,8 +364,8 @@ export function ModulesScene() {
         .to(
           morph,
           {
-            width: () => Math.min(360, vw(26)),
-            height: () => Math.min(452, vh(46)),
+            width: () => Math.min(360, vw(26)) * d,
+            height: () => Math.min(452, vh(46)) * d,
             borderRadius: 10,
             x: () => vw(20) * d,
             y: () => vh(1) * d,
@@ -360,11 +400,11 @@ export function ModulesScene() {
             rotation: (i) => (i % 2 ? 2.5 : -2),
             scale: (i) => ONE_DAY_FRAGMENTS[i].s,
             opacity: 1,
-            duration: 0.11,
-            stagger: 0.012,
+            duration: 0.07,
+            stagger: 0.007,
             ease: "power2.out",
           },
-          L.oneDay + 0.01,
+          L.oneDay + 0.005,
         );
       chapter(2, L.oneDay);
 
@@ -387,8 +427,8 @@ export function ModulesScene() {
         )
         .to(
           q('[data-frag]'),
-          { opacity: 0, scale: 0.5, duration: 0.04, ease: "power2.in" },
-          L.oneDayToAlign + 0.07,
+          { opacity: 0, scale: 0.5, duration: 0.028, ease: "power2.in" },
+          L.oneDayToAlign + 0.05,
         )
         .to(
           titles[2],
@@ -398,8 +438,8 @@ export function ModulesScene() {
         .to(
           morph,
           {
-            width: () => Math.min(300, vw(21)),
-            height: () => Math.min(300, vh(30)),
+            width: () => Math.min(300, vw(21)) * d,
+            height: () => Math.min(300, vh(30)) * d,
             borderRadius: 6,
             x: 0,
             y: () => vh(3) * d,
@@ -435,17 +475,17 @@ export function ModulesScene() {
             rotation: 0,
             opacity: 1,
             scale: 1,
-            duration: 0.1,
-            stagger: { each: 0.008, from: "random" },
+            duration: 0.06,
+            stagger: { each: 0.005, from: "random" },
             ease: "power4.out",
           },
-          L.align + 0.01,
+          L.align + 0.005,
         )
         .fromTo(
-          q('[data-bar] i'),
-          { scaleX: 0 },
-          { scaleX: 1, duration: 0.05, stagger: 0.009, ease: "power3.out" },
-          L.align + 0.05,
+          q('[data-lock]'),
+          { scaleX: 0, opacity: 0 },
+          { scaleX: 1, opacity: 1, duration: 0.045, ease: "power3.out" },
+          L.align + 0.045,
         );
       chapter(3, L.align);
 
@@ -453,7 +493,7 @@ export function ModulesScene() {
       // Slower and softer than the others by design. The rigid grid loosens: blocks
       // regain rotation, drift apart and become photographs. The plan happened.
       tl.addLabel("alignToVault", L.alignToVault)
-        .to(q('[data-bar]'), { opacity: 0, duration: 0.04 }, L.alignToVault)
+        .to(q('[data-lock]'), { opacity: 0, duration: 0.04 }, L.alignToVault)
         .to(
           q('[data-block]'),
           {
@@ -461,8 +501,8 @@ export function ModulesScene() {
             y: (i) => vh(VAULT_FRAMES[i % 5].y * 0.8) * d,
             rotation: (i) => VAULT_FRAMES[i % 5].r,
             opacity: 0,
-            duration: 0.1,
-            stagger: 0.01,
+            duration: 0.05,
+            stagger: 0.004,
             ease: "power1.inOut",
           },
           L.alignToVault,
@@ -475,8 +515,8 @@ export function ModulesScene() {
         .to(
           morph,
           {
-            width: () => Math.min(400, vw(29)),
-            height: () => Math.min(300, vh(34)),
+            width: () => Math.min(400, vw(29)) * d,
+            height: () => Math.min(300, vh(34)) * d,
             borderRadius: 8,
             x: () => vw(7) * d,
             y: () => vh(-1) * d,
@@ -513,11 +553,11 @@ export function ModulesScene() {
             rotation: (i) => VAULT_FRAMES[i].r,
             scale: (i) => VAULT_FRAMES[i].s,
             opacity: (i) => 0.95 + VAULT_FRAMES[i].z / 900,
-            duration: 0.1,
-            stagger: 0.014,
+            duration: 0.055,
+            stagger: 0.007,
             ease: "power2.out",
           },
-          L.vault + 0.01,
+          L.vault + 0.005,
         );
       chapter(4, L.vault);
 
@@ -545,8 +585,8 @@ export function ModulesScene() {
         .to(
           morph,
           {
-            width: () => Math.min(520, vw(38)),
-            height: () => Math.min(110, vh(13)),
+            width: () => Math.min(520, vw(38)) * d,
+            height: () => Math.min(110, vh(13)) * d,
             borderRadius: 999,
             x: 0,
             y: () => vh(6) * d,
@@ -562,9 +602,51 @@ export function ModulesScene() {
         .fromTo(
           one('[data-finale]'),
           { opacity: 0, yPercent: 40 },
-          { opacity: 1, yPercent: 0, duration: 0.05, ease: "power3.out" },
-          L.finale + 0.035,
+          { opacity: 1, yPercent: 0, duration: 0.045, ease: "power3.out" },
+          L.finale + 0.025,
         );
+
+      // DEPARTURE. The mirror of the approach: the story dims and lifts out across the
+      // tail of its own pin while THE LOOP rises through it, so the last thing this
+      // section does is hand over rather than scroll away and leave a gap.
+      gsap.fromTo(
+        stage,
+        { autoAlpha: 1, y: 0 },
+        {
+          autoAlpha: 0,
+          y: () => -window.innerHeight * 0.06,
+          ease: "none",
+          immediateRender: false,
+          scrollTrigger: {
+            trigger: section,
+            ...pinnedTail(() => tl.scrollTrigger),
+            scrub: 0.6,
+            invalidateOnRefresh: true,
+            // Refreshed last. pinnedTail() reads the pin-spacer's height, and the spacer
+            // only grows to the pin distance during the pinned trigger's own refresh --
+            // at default priority this measured the un-pinned box and put the fade a
+            // few hundred pixels into the scene instead of after it.
+            refreshPriority: -1,
+          },
+        },
+      );
+
+      // ------------------------------------------------------ ROOM NAVIGATION
+      // The five rooms have no anchors to link to: they are labelled moments inside
+      // this one pinned trigger. Publish a resolver instead of href targets, and read
+      // `start`/`end` at click time -- ScrollTrigger rewrites both on every refresh,
+      // so anything cached here would be wrong after the first resize.
+      const st = tl.scrollTrigger;
+      return registerRoomTargets((name) => {
+        const i = rooms.findIndex((room) => room.name === name);
+        if (i < 0 || !st) return null;
+        // PEAK is written on the same 0-1 clock as the labels, but a tween positioned
+        // past 1.0 silently stretches the timeline's duration and breaks the identity
+        // "position == scroll percentage". Dividing by the real duration keeps the
+        // targets correct even if a future beat overshoots again.
+        const span = tl.duration() || 1;
+        return { top: st.start + (PEAK[i] / span) * (st.end - st.start) };
+      });
     };
 
     /** Mobile: no pin. Scenes stack, the object is sticky and still morphs across the
@@ -592,6 +674,15 @@ export function ModulesScene() {
           ease: "none",
           scrollTrigger: { trigger: scene, start: "top 80%", end: "bottom 30%", scrub: true },
         });
+      });
+
+      // Same menu contract, different geometry: with no pin, a room is simply its own
+      // block in the document, so the resolver returns that block's top.
+      return registerRoomTargets((name) => {
+        const i = rooms.findIndex((room) => room.name === name);
+        const scene = scenes[i];
+        if (!scene) return null;
+        return { top: scene.getBoundingClientRect().top + window.scrollY };
       });
     };
 
@@ -664,7 +755,10 @@ export function ModulesScene() {
               <b />
               <b />
             </span>
-            <p data-note className="scene-note n-tea">{rooms[0].description}</p>
+            <p data-note className="scene-note n-tea">
+              <b>ROOM 01 · THE SPILL</b>
+              {rooms[0].description}
+            </p>
           </div>
 
           {/* ------------------------------------------------------- CREATE */}
@@ -676,7 +770,10 @@ export function ModulesScene() {
               ))}
             </div>
             <i data-playhead className="playhead" aria-hidden="true" />
-            <p data-note className="scene-note n-create">{rooms[1].description}</p>
+            <p data-note className="scene-note n-create">
+              <b>ROOM 02 · THE MAKE</b>
+              {rooms[1].description}
+            </p>
           </div>
 
           {/* ------------------------------------------------------ ONE DAY */}
@@ -687,7 +784,10 @@ export function ModulesScene() {
                 {frag.text}
               </span>
             ))}
-            <p data-note className="scene-note n-oneday">{rooms[2].description}</p>
+            <p data-note className="scene-note n-oneday">
+              <b>ROOM 03 · THE SOMEDAY</b>
+              {rooms[2].description}
+            </p>
           </div>
 
           {/* -------------------------------------------------------- ALIGN */}
@@ -696,12 +796,11 @@ export function ModulesScene() {
             {Array.from({ length: 10 }, (_, i) => (
               <i key={i} data-block className="block" aria-hidden="true" />
             ))}
-            <div data-bar className="bars" aria-hidden="true">
-              {Array.from({ length: 4 }, (_, i) => (
-                <i key={i} />
-              ))}
-            </div>
-            <p data-note className="scene-note n-align">{rooms[3].description}</p>
+            <i data-lock className="align-lock" aria-hidden="true" />
+            <p data-note className="scene-note n-align">
+              <b>ROOM 04 · THE DECISION</b>
+              {rooms[3].description}
+            </p>
           </div>
 
           {/* -------------------------------------------------------- VAULT */}
@@ -710,7 +809,10 @@ export function ModulesScene() {
             {VAULT_FRAMES.map((frame, i) => (
               <i key={i} data-photo className="photo" aria-hidden="true" />
             ))}
-            <p data-note className="scene-note n-vault">{rooms[4].description}</p>
+            <p data-note className="scene-note n-vault">
+              <b>ROOM 05 · THE KEEP</b>
+              {rooms[4].description}
+            </p>
           </div>
         </div>
 

@@ -17,6 +17,15 @@ export interface CursorImageTrailProps {
   rotationRange?: number;
   /** Render target — defaults to the whole window. */
   containerRef?: React.RefObject<HTMLElement | null>;
+  /**
+   * When false the trail stops spawning *and* drops whatever it is holding.
+   *
+   * The host is pinned, so items spawned near the top of the hero stayed parked in the
+   * corner while the section scrolled away, and read as photographs stuck to the next
+   * scene. Unmounting instead is not an option: React cannot remove a node from a
+   * subtree ScrollTrigger has re-parented into its pin-spacer. @default true
+   */
+  enabled?: boolean;
   className?: string;
   children?: React.ReactNode;
 }
@@ -39,6 +48,7 @@ export function CursorImageTrail({
   spawnDistance = 80,
   rotationRange = 20,
   containerRef,
+  enabled = true,
   className,
   children,
 }: CursorImageTrailProps) {
@@ -48,6 +58,11 @@ export function CursorImageTrail({
   const containerElRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
+    if (!enabled) {
+      lastPos.current = null;
+      setTrail([]);
+      return;
+    }
     const el = containerRef?.current ?? containerElRef.current ?? window;
 
     const onLeave = () => setTrail([]);
@@ -86,7 +101,7 @@ export function CursorImageTrail({
       el.removeEventListener("mousemove", onMove);
       el.removeEventListener("mouseleave", onLeave);
     };
-  }, [items, spawnDistance, rotationRange, trailLength, containerRef]);
+  }, [items, spawnDistance, rotationRange, trailLength, containerRef, enabled]);
 
   const total = trail.length;
 

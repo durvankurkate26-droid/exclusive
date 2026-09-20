@@ -5,7 +5,7 @@ type NavbarProps = {
 
 export function Navbar({ menuOpen, onMenuClick }: NavbarProps) {
   return (
-    <header className="fixed inset-x-0 top-0 z-50 flex items-center justify-between px-5 py-[18px] md:px-6">
+    <header className="site-nav fixed inset-x-0 top-0 z-50 flex items-center justify-between px-5 py-[18px] md:px-6">
       <a className="nav-label font-bold" href="#top" aria-label="EXCLUSIVE home">
         EXCLUSIVE
       </a>
