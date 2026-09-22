@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { friendly } from "@/lib/errors";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getUser } from "@/lib/data/session";
@@ -41,6 +42,11 @@ export async function createCapsule(
   const title = String(formData.get("title") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
   const memoryDate = String(formData.get("memory_date") ?? "").trim();
+  // Where this memory came from, when it was started from a finished make or idea.
+  // Only a well-formed id is kept; RLS decides whether the row behind it is visible.
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const sourceCreate = String(formData.get("source_create_id") ?? "");
+  const sourceIdea = String(formData.get("source_idea_id") ?? "");
 
   if (!title) return { error: "What was it? Name the night." };
   if (title.length > 120) return { error: "Shorter title, please." };
@@ -54,11 +60,13 @@ export async function createCapsule(
       title,
       description: description || null,
       memory_date: memoryDate || null,
+      source_create_id: uuid.test(sourceCreate) ? sourceCreate : null,
+      source_idea_id: uuid.test(sourceIdea) ? sourceIdea : null,
     })
     .select("id")
     .single();
 
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error, "vault") };
 
   // Whoever opens the capsule was there. They can untag themselves if not.
   await supabase
@@ -91,7 +99,7 @@ export async function updateCapsule(
     })
     .eq("id", capsuleId);
 
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error, "vault") };
 
   revalidatePath(`/g/${slug}/vault`);
   revalidatePath(`/g/${slug}/vault/${capsuleId}`);
@@ -199,7 +207,7 @@ export async function setCapsuleCover(
     .update({ cover_url: storagePath })
     .eq("id", capsuleId);
 
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error, "vault") };
 
   revalidatePath(`/g/${slug}/vault`);
   revalidatePath(`/g/${slug}/vault/${capsuleId}`);
@@ -221,7 +229,7 @@ export async function deleteMemoryMedia(
     .maybeSingle();
 
   const { error } = await supabase.from("memory_media").delete().eq("id", mediaId);
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error, "vault") };
 
   if (media?.storage_path) {
     await supabase.storage.from("vault-media").remove([media.storage_path]);
@@ -257,7 +265,7 @@ export async function addMemoryNote(
     .from("memory_notes")
     .insert({ capsule_id: capsuleId, user_id: user.id, note });
 
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error, "vault") };
 
   revalidatePath(`/g/${slug}/vault/${capsuleId}`);
   return {};
@@ -270,7 +278,7 @@ export async function deleteMemoryNote(
 ): Promise<FormState> {
   const supabase = await createClient();
   const { error } = await supabase.from("memory_notes").delete().eq("id", noteId);
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error, "vault") };
   revalidatePath(`/g/${slug}/vault/${capsuleId}`);
   return {};
 }
@@ -292,12 +300,12 @@ export async function toggleCapsuleParticipant(
 
   if (existing) {
     const { error } = await supabase.from("memory_members").delete().eq("id", existing.id);
-    if (error) return { error: error.message };
+    if (error) return { error: friendly(error, "vault") };
   } else {
     const { error } = await supabase
       .from("memory_members")
       .insert({ capsule_id: capsuleId, user_id: userId });
-    if (error) return { error: error.message };
+    if (error) return { error: friendly(error, "vault") };
   }
 
   revalidatePath(`/g/${slug}/vault`);
@@ -385,7 +393,7 @@ export async function recordUploads(
 
   if (error) {
     await supabase.storage.from("vault-media").remove(files.map((f) => f.path));
-    return { error: error.message };
+    return { error: friendly(error, "vault") };
   }
 
   revalidatePath(`/g/${slug}/vault`);
@@ -405,7 +413,7 @@ export async function setMediaCaption(
     .from("memory_media")
     .update({ caption: trimmed || null })
     .eq("id", mediaId);
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error, "vault") };
   revalidatePath(`/g/${slug}/vault/${capsuleId}`);
   return {};
 }

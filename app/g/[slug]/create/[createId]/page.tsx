@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { requireGroup } from "@/lib/data/session";
+import { requireGroup, roomContext } from "@/lib/data/session";
 import { getCreation } from "@/lib/data/create";
 import { Avatar } from "@/components/app/Avatar";
-import { ArrowLeft, ArrowUpRight } from "@/components/app/Icons";
+import { ArrowLeft, ArrowUpRight, RoomGlyph } from "@/components/app/Icons";
+import { CreateCapsule } from "@/components/vault/CreateCapsule";
 import { firstName, toPeople } from "@/components/app/People";
 import { JoinCrew, Lifecycle, RolePicker } from "@/components/create/CrewControls";
 import { Reference } from "@/components/create/Reference";
@@ -22,10 +23,13 @@ export const dynamic = "force-dynamic";
  */
 export default async function CreationDetail({ params }: PageProps<"/g/[slug]/create/[createId]">) {
   const { slug, createId } = await params;
-  const { group, profile } = await requireGroup(slug);
-  const { creation, avatars } = await getCreation(createId, profile.id);
+  const { groupId, viewerId } = await roomContext(slug);
+  const [{ profile }, { creation, avatars }] = await Promise.all([
+    requireGroup(slug),
+    getCreation(createId, viewerId, groupId),
+  ]);
 
-  if (!creation || creation.group_id !== group.id) notFound();
+  if (!creation) notFound();
 
   const crew = creation.crew.filter((m) => m.status === "in");
   const me = { id: profile.id, name: profile.display_name, url: avatars.get(profile.id) ?? null };
@@ -48,7 +52,7 @@ export default async function CreationDetail({ params }: PageProps<"/g/[slug]/cr
                   The reference{host ? ` · ${host}` : ""} <ArrowUpRight className="btn-arrow" width={14} height={14} />
                 </a>
               ) : (
-                <span className="meta">No reference — it&apos;s all in someone&apos;s head.</span>
+                <span className="meta">No reference. It&apos;s all in someone&apos;s head.</span>
               )}
             </figcaption>
           </figure>
@@ -96,6 +100,25 @@ export default async function CreationDetail({ params }: PageProps<"/g/[slug]/cr
           )}
 
           <Lifecycle createId={creation.id} slug={slug} status={creation.status} planId={creation.planId} crewCount={crew.length} />
+
+          {/* The end of the line: a finished make becomes a memory, and says so. */}
+          {finished &&
+            (creation.capsuleId ? (
+              <Link className="lineage-next" href={`/g/${slug}/vault/${creation.capsuleId}`}>
+                <RoomGlyph room="vault" width={16} height={16} aria-hidden="true" /> Saved in the vault. Open the memory
+              </Link>
+            ) : (
+              <div className="lineage-next">
+                <p className="lede">You made it. Keep the night it took, not just the link.</p>
+                <CreateCapsule
+                  groupId={creation.group_id}
+                  slug={slug}
+                  variant="quiet"
+                  label="Turn this into a memory"
+                  source={{ kind: "create", id: creation.id, title: creation.title }}
+                />
+              </div>
+            ))}
         </div>
       </div>
     </div>

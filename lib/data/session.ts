@@ -17,14 +17,22 @@ import type { Group, Profile, Role } from "@/lib/supabase/database.types";
  * components in the same render all share one round trip instead of five.
  */
 
-export const getUser = cache(async () => {
+/**
+ * The signed-in user, from a *verified* JWT.
+ *
+ * `getClaims()` checks the access token's signature against the project's published
+ * ES256 key (fetched once and cached for the process), so this costs no network
+ * round trip — where `getUser()` asked the auth server every time, ~270ms before any
+ * page could start its own queries. The trade-off is that a revoked session stays
+ * valid until its access token expires (≤1h); Row Level Security verifies the same
+ * token on every query, so nothing here is trusted more than the database trusts it.
+ * `getSession()` is still never used on the server: it decodes without verifying.
+ */
+export const getUser = cache(async (): Promise<{ id: string; email: string | null } | null> => {
   const supabase = await createClient();
-  // getUser() revalidates the token with the auth server. getSession() only decodes
-  // the cookie, so it cannot tell a revoked session from a live one.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user;
+  const { data, error } = await supabase.auth.getClaims();
+  if (error || !data?.claims?.sub) return null;
+  return { id: data.claims.sub, email: (data.claims.email as string | undefined) ?? null };
 });
 
 export const getProfile = cache(async (): Promise<Profile | null> => {
@@ -54,8 +62,8 @@ export async function requireUser() {
  * have chosen a name and username, which is what `onboarded_at` records.
  */
 export async function requireProfile(): Promise<Profile> {
-  await requireUser();
   const profile = await getProfile();
+  if (!profile) await requireUser();
   if (!profile) redirect("/login");
   if (!profile.onboarded_at) redirect("/onboarding");
   return profile;
@@ -87,11 +95,12 @@ export const getMyGroups = cache(async (): Promise<Membership[]> => {
 });
 
 /**
- * Resolve a group from its URL slug *and* prove membership in one step.
+ * Resolve a group from its URL slug *and* prove membership in one round trip.
  *
- * Returning `null` rather than throwing for a non-member is deliberate: the caller
- * renders a 404, so probing slugs cannot distinguish "this group does not exist" from
- * "this group exists and you are not in it".
+ * The inner join on `group_members` filtered to this user means a non-member gets no
+ * row at all — and RLS on `groups` would hide it anyway. Returning `null` rather than
+ * throwing is deliberate: the caller renders a 404, so probing slugs cannot tell
+ * "does not exist" apart from "exists, you're not in it".
  */
 export const getGroupBySlug = cache(
   async (slug: string): Promise<Membership | null> => {
@@ -99,36 +108,49 @@ export const getGroupBySlug = cache(
     if (!user) return null;
 
     const supabase = await createClient();
-    // RLS already restricts `groups` to groups you belong to, so a non-member simply
-    // gets no row back. The explicit membership read below is what gives us the role.
-    const { data: group } = await supabase
+    const { data } = await supabase
       .from("groups")
-      .select("*")
+      .select("*, group_members!inner(role)")
       .eq("slug", slug)
+      .eq("group_members.user_id", user.id)
       .maybeSingle();
 
-    if (!group) return null;
-
-    const { data: membership } = await supabase
-      .from("group_members")
-      .select("role")
-      .eq("group_id", group.id)
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (!membership) return null;
-    return { group, role: membership.role as Role };
+    if (!data) return null;
+    const { group_members: rows, ...group } = data as unknown as Group & {
+      group_members: Array<{ role: Role }>;
+    };
+    const role = rows?.[0]?.role;
+    if (!role) return null;
+    groupIds.set(slug, group.id);
+    return { group, role };
   },
 );
 
 /** Group-scoped page guard: profile complete, group exists, caller is a member. */
-export async function requireGroup(slug: string) {
-  const profile = await requireProfile();
-  const membership = await getGroupBySlug(slug);
-  // Not "forbidden" — as far as this session is concerned the group is not there, so
-  // probing slugs cannot tell "does not exist" apart from "exists, you're not in it".
+export const requireGroup = cache(async (slug: string) => {
+  // Independent reads, so they share one round trip instead of queueing.
+  const [profile, membership] = await Promise.all([requireProfile(), getGroupBySlug(slug)]);
   if (!membership) notFound();
   return { profile, group: membership.group, role: membership.role };
+});
+
+/**
+ * slug → group id, remembered for the life of the server process.
+ *
+ * A room's data queries only need the id, and waiting for `requireGroup` to learn it
+ * would put the membership check and the room's own reads back into a queue. The id
+ * is not a secret and not an authorization: every read is still filtered by RLS, and
+ * pages still `await requireGroup` (which 404s non-members) before rendering. So a
+ * page can start both at once and render only when both agree.
+ */
+const groupIds = new Map<string, string>();
+
+export async function groupIdFor(slug: string): Promise<string> {
+  const known = groupIds.get(slug);
+  if (known) return known;
+  const membership = await getGroupBySlug(slug);
+  if (!membership) notFound();
+  return membership.group.id;
 }
 
 /** Members of a group, with their profiles. Used by the member wall and avatar stacks. */
@@ -156,3 +178,15 @@ export const getGroupMembers = cache(
       );
   },
 );
+
+/**
+ * What a room needs to *start* reading: the group id and the viewer id, without
+ * waiting on the membership check. Pages run their reads alongside `requireGroup`
+ * and render only once both are back — RLS means a non-member's reads come back
+ * empty anyway, and `requireGroup` then 404s them.
+ */
+export async function roomContext(slug: string): Promise<{ groupId: string; viewerId: string }> {
+  const [groupId, user] = await Promise.all([groupIdFor(slug), getUser()]);
+  if (!user) redirect("/login");
+  return { groupId, viewerId: user.id };
+}

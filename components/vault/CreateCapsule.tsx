@@ -25,11 +25,16 @@ export function CreateCapsule({
   slug,
   defaultOpen,
   variant = "lit",
+  source,
+  label = "New memory",
 }: {
   groupId: string;
   slug: string;
   defaultOpen?: boolean;
   variant?: "lit" | "quiet";
+  /** A finished make or idea this memory grows out of: prefilled, and linked back. */
+  source?: { kind: "create" | "idea"; id: string; title: string };
+  label?: string;
 }) {
   const [state, action] = useActionState<FormState, FormData>(createCapsule, {});
   const today = new Date().toISOString().slice(0, 10);
@@ -41,7 +46,7 @@ export function CreateCapsule({
       defaultOpen={defaultOpen}
       trigger={(open) => (
         <button className={variant === "lit" ? "btn btn-lit" : "btn"} type="button" onClick={open}>
-          <Plus width={16} height={16} /> New memory
+          <Plus width={16} height={16} /> {label}
         </button>
       )}
     >
@@ -49,12 +54,16 @@ export function CreateCapsule({
         <form action={action} className="field" style={{ gap: "1.25rem" }}>
           <input type="hidden" name="group_id" value={groupId} />
           <input type="hidden" name="slug" value={slug} />
+          {source && (
+            <input type="hidden" name={source.kind === "create" ? "source_create_id" : "source_idea_id"} value={source.id} />
+          )}
           <label className="sr-only" htmlFor="capsule-title">What happened</label>
           <input
             id="capsule-title"
             className="input input-title"
             name="title"
             placeholder="The night the car broke down"
+            defaultValue={source?.title}
             maxLength={120}
             required
             autoFocus

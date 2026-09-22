@@ -2,6 +2,7 @@ import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
 import { resolveAvatars, signVaultMedia, isExternal } from "@/lib/data/media";
+import { daysUntil, weekday } from "@/lib/format";
 import type {
   CreateIdea,
   MemoryCapsule,
@@ -27,17 +28,30 @@ export type HomeSnapshot = {
   upcoming: (Plan & { people: Profile[] }) | null;
   making: (CreateIdea & { people: Profile[] }) | null;
   lastMemory: (MemoryCapsule & { mediaCount: number; coverUrl: string | null; people: Profile[] }) | null;
+  /** The group's most recent photographs, newest memory first, for the strip. */
+  strip: Array<{ id: string; url: string; capsuleId: string; title: string; caption: string | null }>;
   stats: { messages24h: number; photos7d: number; teaCount: number };
   memberCount: number;
   avatars: Map<string, string | null>;
 };
 
+type Row = Record<string, unknown>;
+const STRIP = 9;
+const profilesOf = (rows: unknown): Profile[] =>
+  ((rows ?? []) as Array<{ profiles: Profile | null }>)
+    .map((row) => row.profiles)
+    .filter((p): p is Profile => Boolean(p));
+
 /**
  * Home's data.
  *
  * Small targeted queries rather than an activity-feed table: each room is asked for
- * its single most interesting row. Home shows what is *live*, not a log. Every query
- * is bounded by RLS to this group.
+ * its single most interesting row. Home shows what is *live*, not a log.
+ *
+ * Everything a row needs (its messages, hands, votes, crew, photos) is embedded in
+ * that row's own query, so the whole snapshot is **one** parallel wave of requests
+ * plus a signing call — it used to be ten requests queued one behind another.
+ * Every query is bounded by RLS to this group.
  */
 export async function getHomeSnapshot(groupId: string): Promise<HomeSnapshot> {
   const supabase = await createClient();
@@ -45,26 +59,30 @@ export async function getHomeSnapshot(groupId: string): Promise<HomeSnapshot> {
   const dayAgo = new Date(Date.now() - 86400000).toISOString();
   const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
 
-  const [teaRes, ideaRes, planRes, lockedRes, createRes, capsuleRes, memberRes, teaIds, photoRes] =
+  const [teaRes, ideaRes, planRes, lockedRes, createRes, capsuleRes, memberRes, msgRes, teaCountRes, photoRes, stripRes] =
     await Promise.all([
       supabase
         .from("teas")
-        .select("*, profiles:created_by(*)")
+        .select(
+          "*, profiles:created_by(*), tea_messages(count), recent:tea_messages(content, created_at, user_id, profiles:user_id(*))",
+        )
         .eq("group_id", groupId)
         .eq("status", "brewing")
         .order("updated_at", { ascending: false })
+        .order("created_at", { referencedTable: "recent", ascending: false })
+        .limit(60, { referencedTable: "recent" })
         .limit(1)
         .maybeSingle(),
       supabase
         .from("one_day_ideas")
-        .select("*")
+        .select("*, one_day_interest(interested, profiles:user_id(*))")
         .eq("group_id", groupId)
         .in("status", ["idea", "ready_to_plan"])
         .order("created_at", { ascending: false })
         .limit(12),
       supabase
         .from("plans")
-        .select("*")
+        .select("*, plan_options(option_type, value, plan_votes(user_id)), plan_members(attendance_status)")
         .eq("group_id", groupId)
         .eq("status", "open")
         .order("updated_at", { ascending: false })
@@ -72,7 +90,7 @@ export async function getHomeSnapshot(groupId: string): Promise<HomeSnapshot> {
         .maybeSingle(),
       supabase
         .from("plans")
-        .select("*")
+        .select("*, plan_members(attendance_status, profiles:user_id(*))")
         .eq("group_id", groupId)
         .eq("status", "locked")
         .gte("final_date", today)
@@ -81,7 +99,7 @@ export async function getHomeSnapshot(groupId: string): Promise<HomeSnapshot> {
         .maybeSingle(),
       supabase
         .from("create_ideas")
-        .select("*")
+        .select("*, create_members(participation_status, profiles:user_id(*))")
         .eq("group_id", groupId)
         .not("status", "in", "(completed,posted)")
         .order("updated_at", { ascending: false })
@@ -89,18 +107,35 @@ export async function getHomeSnapshot(groupId: string): Promise<HomeSnapshot> {
         .maybeSingle(),
       supabase
         .from("memory_capsules")
-        .select("*")
+        // The latest memory that has already happened *and* has a photo: Home's
+        // memory slot is a photograph, never an empty plate.
+        .select("*, memory_media(count), first:memory_media!inner(storage_path), memory_members(profiles:user_id(*))")
         .eq("group_id", groupId)
+        .lte("memory_date", today)
         .order("memory_date", { ascending: false, nullsFirst: false })
+        .order("sort_order", { referencedTable: "first" })
+        .limit(1, { referencedTable: "first" })
         .limit(1)
         .maybeSingle(),
       supabase.from("group_members").select("user_id, profiles(id, display_name)").eq("group_id", groupId),
-      supabase.from("teas").select("id").eq("group_id", groupId),
+      supabase
+        .from("tea_messages")
+        .select("id, teas!inner(group_id)", { count: "exact", head: true })
+        .eq("teas.group_id", groupId)
+        .gte("created_at", dayAgo),
+      supabase.from("teas").select("id", { count: "exact", head: true }).eq("group_id", groupId),
       supabase
         .from("memory_media")
         .select("id, memory_capsules!inner(group_id)", { count: "exact", head: true })
         .eq("memory_capsules.group_id", groupId)
         .gte("created_at", weekAgo),
+      supabase
+        .from("memory_media")
+        .select("id, storage_path, caption, memory_capsules!inner(id, title, group_id)")
+        .eq("memory_capsules.group_id", groupId)
+        .eq("media_type", "image")
+        .order("created_at", { ascending: false })
+        .limit(STRIP),
     ]);
 
   const memberRows = (memberRes.data ?? []) as unknown as Array<{
@@ -109,39 +144,23 @@ export async function getHomeSnapshot(groupId: string): Promise<HomeSnapshot> {
   }>;
   const memberCount = memberRows.length;
   const profilesToResolve: Array<{ id: string; avatar_url: string | null }> = [];
-  const allTeaIds = (teaIds.data ?? []).map((t) => t.id);
-
-  const { count: messages24h } = allTeaIds.length
-    ? await supabase
-        .from("tea_messages")
-        .select("id", { count: "exact", head: true })
-        .in("tea_id", allTeaIds)
-        .gte("created_at", dayAgo)
-    : { count: 0 };
 
   // --- brewing tea, with the last thing said in it
   let brewing: HomeSnapshot["brewing"] = null;
   if (teaRes.data) {
-    const author = (teaRes.data as unknown as { profiles: Profile | null }).profiles;
-    const { data: rows } = await supabase
-      .from("tea_messages")
-      .select("content, created_at, user_id, profiles:user_id(*)")
-      .eq("tea_id", teaRes.data.id)
-      .order("created_at", { ascending: false });
-
+    const { profiles: author, tea_messages, recent, ...tea } = teaRes.data as unknown as Tea & {
+      profiles: Profile | null;
+      tea_messages: Array<{ count: number }>;
+      recent: Array<{ content: string; created_at: string; profiles: Profile | null }>;
+    };
     const voices = new Map<string, Profile>();
-    for (const row of rows ?? []) {
-      const p = (row as unknown as { profiles: Profile | null }).profiles;
-      if (p) voices.set(p.id, p);
-    }
-    const lastRow = rows?.[0] as unknown as
-      | { content: string; created_at: string; profiles: Profile | null }
-      | undefined;
+    for (const row of recent ?? []) if (row.profiles) voices.set(row.profiles.id, row.profiles);
+    const lastRow = recent?.[0];
 
     brewing = {
-      ...(teaRes.data as Tea),
+      ...(tea as Tea),
       author: author ?? null,
-      messageCount: rows?.length ?? 0,
+      messageCount: tea_messages?.[0]?.count ?? 0,
       voices: [...voices.values()],
       last: lastRow
         ? {
@@ -157,52 +176,38 @@ export async function getHomeSnapshot(groupId: string): Promise<HomeSnapshot> {
 
   // --- the idea with the most hands up, and who is holding out
   let rising: HomeSnapshot["rising"] = null;
-  const ideas = ideaRes.data ?? [];
-  if (ideas.length > 0) {
-    const { data: interest } = await supabase
-      .from("one_day_interest")
-      .select("idea_id, user_id, profiles:user_id(*)")
-      .in("idea_id", ideas.map((idea) => idea.id))
-      .eq("interested", true);
+  const ideas = (
+    (ideaRes.data ?? []) as unknown as Array<
+      OneDayIdea & { one_day_interest: Array<{ interested: boolean; profiles: Profile | null }> }
+    >
+  ).map(({ one_day_interest, ...idea }) => ({
+    idea: idea as OneDayIdea,
+    people: profilesOf((one_day_interest ?? []).filter((row) => row.interested)),
+  }));
+  const best = [...ideas].sort((a, b) => b.people.length - a.people.length)[0];
+  if (best && best.people.length > 0) {
+    const inIds = new Set(best.people.map((p) => p.id));
+    // Deterministic, not random: the first member alphabetically who has not said yes.
+    const holdout =
+      memberRows
+        .map((m) => m.profiles)
+        .filter((p): p is Pick<Profile, "id" | "display_name"> => Boolean(p) && !inIds.has(p!.id))
+        .sort((a, b) => a.display_name.localeCompare(b.display_name))[0]
+        ?.display_name.split(" ")[0] ?? null;
 
-    const byIdea = new Map<string, Profile[]>();
-    for (const row of interest ?? []) {
-      const profile = (row as unknown as { profiles: Profile | null }).profiles;
-      const list = byIdea.get(row.idea_id) ?? [];
-      if (profile) list.push(profile);
-      byIdea.set(row.idea_id, list);
-    }
-
-    const best = ideas
-      .map((idea) => ({ idea, people: byIdea.get(idea.id) ?? [] }))
-      .sort((a, b) => b.people.length - a.people.length)[0];
-
-    if (best && best.people.length > 0) {
-      const inIds = new Set(best.people.map((p) => p.id));
-      // Deterministic, not random: the first member alphabetically who has not said yes.
-      const holdout =
-        memberRows
-          .map((m) => m.profiles)
-          .filter((p): p is Pick<Profile, "id" | "display_name"> => Boolean(p) && !inIds.has(p!.id))
-          .sort((a, b) => a.display_name.localeCompare(b.display_name))[0]
-          ?.display_name.split(" ")[0] ?? null;
-
-      rising = { ...best.idea, interested: best.people.length, people: best.people, holdout };
-      profilesToResolve.push(...best.people);
-    }
+    rising = { ...best.idea, interested: best.people.length, people: best.people, holdout };
+    profilesToResolve.push(...best.people);
   }
 
   // --- the open plan, what is blocking it, and what the group is leaning toward
   let deciding: HomeSnapshot["deciding"] = null;
   if (planRes.data) {
-    const plan = planRes.data as Plan;
-    const [{ data: options }, { data: attendance }] = await Promise.all([
-      supabase.from("plan_options").select("id, option_type, value, plan_votes(user_id)").eq("plan_id", plan.id),
-      supabase.from("plan_members").select("attendance_status").eq("plan_id", plan.id),
-    ]);
-
+    const { plan_options: options, plan_members: attendance, ...plan } = planRes.data as unknown as Plan & {
+      plan_options: Array<{ option_type: string; value: string; plan_votes: unknown[] }>;
+      plan_members: Array<{ attendance_status: string }>;
+    };
     const lead = (type: string) =>
-      ((options ?? []) as unknown as Array<{ option_type: string; value: string; plan_votes: unknown[] }>)
+      (options ?? [])
         .filter((o) => o.option_type === type)
         .sort((a, b) => b.plan_votes.length - a.plan_votes.length)[0]?.value ?? null;
 
@@ -212,72 +217,74 @@ export async function getHomeSnapshot(groupId: string): Promise<HomeSnapshot> {
     if (!plan.final_location && !lead("location")) unresolved.push("place");
     if (inCount < Math.ceil(memberCount / 2)) unresolved.push("who's coming");
 
-    deciding = { ...plan, unresolved, inCount, leadingDate: lead("date"), leadingPlace: lead("location") };
+    deciding = { ...(plan as Plan), unresolved, inCount, leadingDate: lead("date"), leadingPlace: lead("location") };
   }
 
   // --- the next thing that is definitely happening
   let upcoming: HomeSnapshot["upcoming"] = null;
   if (lockedRes.data) {
-    const plan = lockedRes.data as Plan;
-    const { data: going } = await supabase
-      .from("plan_members")
-      .select("profiles:user_id(*)")
-      .eq("plan_id", plan.id)
-      .eq("attendance_status", "in");
-    const people = (going ?? [])
-      .map((row) => (row as unknown as { profiles: Profile | null }).profiles)
-      .filter((p): p is Profile => Boolean(p));
-    upcoming = { ...plan, people };
+    const { plan_members, ...plan } = lockedRes.data as unknown as Plan & {
+      plan_members: Array<{ attendance_status: string; profiles: Profile | null }>;
+    };
+    const people = profilesOf((plan_members ?? []).filter((row) => row.attendance_status === "in"));
+    upcoming = { ...(plan as Plan), people };
     profilesToResolve.push(...people);
   }
 
   // --- what the group is currently making
   let making: HomeSnapshot["making"] = null;
   if (createRes.data) {
-    const creation = createRes.data as CreateIdea;
-    const { data: people } = await supabase
-      .from("create_members")
-      .select("profiles:user_id(*)")
-      .eq("create_id", creation.id)
-      .eq("participation_status", "in");
-
-    const profiles = (people ?? [])
-      .map((row) => (row as unknown as { profiles: Profile | null }).profiles)
-      .filter((p): p is Profile => Boolean(p));
-
-    making = { ...creation, people: profiles };
-    profilesToResolve.push(...profiles);
+    const { create_members, ...creation } = createRes.data as unknown as CreateIdea & {
+      create_members: Array<{ participation_status: string; profiles: Profile | null }>;
+    };
+    const people = profilesOf((create_members ?? []).filter((row) => row.participation_status === "in"));
+    making = { ...(creation as CreateIdea), people };
+    profilesToResolve.push(...people);
   }
 
   // --- the last thing worth remembering, with its face
   let lastMemory: HomeSnapshot["lastMemory"] = null;
+  let coverPath: string | undefined;
   if (capsuleRes.data) {
-    const capsule = capsuleRes.data as MemoryCapsule;
-    const [{ data: media, count }, { data: members }] = await Promise.all([
-      supabase
-        .from("memory_media")
-        .select("storage_path", { count: "exact" })
-        .eq("capsule_id", capsule.id)
-        .order("sort_order")
-        .limit(1),
-      supabase.from("memory_members").select("profiles:user_id(*)").eq("capsule_id", capsule.id),
-    ]);
-    const coverPath =
-      capsule.cover_url && !isExternal(capsule.cover_url) ? capsule.cover_url : media?.[0]?.storage_path;
-    const signed = coverPath ? await signVaultMedia([coverPath]) : new Map<string, string>();
-    const people = (members ?? [])
-      .map((row) => (row as unknown as { profiles: Profile | null }).profiles)
-      .filter((p): p is Profile => Boolean(p));
+    const { memory_media, first, memory_members, ...capsule } = capsuleRes.data as unknown as MemoryCapsule & {
+      memory_media: Array<{ count: number }>;
+      first: Array<{ storage_path: string }>;
+      memory_members: Row[];
+    };
+    coverPath = capsule.cover_url && !isExternal(capsule.cover_url) ? capsule.cover_url : first?.[0]?.storage_path;
+    const people = profilesOf(memory_members);
     lastMemory = {
-      ...capsule,
-      mediaCount: count ?? 0,
-      coverUrl: capsule.cover_url && isExternal(capsule.cover_url) ? capsule.cover_url : coverPath ? (signed.get(coverPath) ?? null) : null,
+      ...(capsule as MemoryCapsule),
+      mediaCount: memory_media?.[0]?.count ?? 0,
+      coverUrl: capsule.cover_url && isExternal(capsule.cover_url) ? capsule.cover_url : null,
       people,
     };
     profilesToResolve.push(...people);
   }
 
-  const avatars = await resolveAvatars(profilesToResolve);
+  const stripRows = (stripRes.data ?? []) as unknown as Array<{
+    id: string;
+    storage_path: string;
+    caption: string | null;
+    memory_capsules: { id: string; title: string };
+  }>;
+
+  // One signing call for the cover and the whole strip.
+  const [avatars, signed] = await Promise.all([
+    resolveAvatars(profilesToResolve),
+    signVaultMedia([...(coverPath ? [coverPath] : []), ...stripRows.map((row) => row.storage_path)]),
+  ]);
+  if (lastMemory && coverPath && !lastMemory.coverUrl) lastMemory.coverUrl = signed.get(coverPath) ?? null;
+
+  const strip = stripRows
+    .map((row) => ({
+      id: row.id,
+      url: signed.get(row.storage_path) ?? "",
+      capsuleId: row.memory_capsules.id,
+      title: row.memory_capsules.title,
+      caption: row.caption,
+    }))
+    .filter((frame) => frame.url);
 
   return {
     brewing,
@@ -286,7 +293,12 @@ export async function getHomeSnapshot(groupId: string): Promise<HomeSnapshot> {
     upcoming,
     making,
     lastMemory,
-    stats: { messages24h: messages24h ?? 0, photos7d: photoRes.count ?? 0, teaCount: allTeaIds.length },
+    strip,
+    stats: {
+      messages24h: msgRes.count ?? 0,
+      photos7d: photoRes.count ?? 0,
+      teaCount: teaCountRes.count ?? 0,
+    },
     memberCount,
     avatars,
   };
@@ -303,11 +315,8 @@ export function groupPulse(s: HomeSnapshot, activity7d: number): {
   lines: [string, string];
   room: "align" | "tea" | "one-day" | "vault" | "home";
 } {
-  const weekday = (iso: string) =>
-    new Date(iso).toLocaleDateString(undefined, { weekday: "long" }).toUpperCase();
-
   if (s.upcoming?.final_date) {
-    const days = Math.round((new Date(s.upcoming.final_date).getTime() - Date.now()) / 86400000);
+    const days = daysUntil(s.upcoming.final_date);
     if (days <= 7) return { lines: [`${weekday(s.upcoming.final_date)} IS`, "HAPPENING."], room: "align" };
     return { lines: [`${s.upcoming.people.length} OF YOU HAVE`, "PLANS NOW."], room: "align" };
   }

@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { friendly } from "@/lib/errors";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getUser } from "@/lib/data/session";
@@ -46,7 +47,7 @@ export async function addIdea(_prev: FormState, formData: FormData): Promise<For
     .select("id")
     .single();
 
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error, "rooms") };
 
   // Putting an idea in is itself a vote for it. Making the author raise their hand
   // separately is a step that exists only because the schema has two tables.
@@ -96,7 +97,7 @@ export async function makeThisReal(ideaId: string, slug: string): Promise<FormSt
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("promote_idea_to_plan", { idea: ideaId });
 
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error, "rooms") };
 
   revalidatePath(`/g/${slug}/one-day`);
   revalidatePath(`/g/${slug}/align`);
@@ -124,7 +125,7 @@ export async function createPlan(_prev: FormState, formData: FormData): Promise<
     .select("id")
     .single();
 
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error, "rooms") };
 
   await supabase
     .from("plan_members")
@@ -153,7 +154,7 @@ export async function addOption(
     .select("id")
     .single();
 
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error, "rooms") };
 
   // Proposing an option is a vote for it — same reasoning as adding an idea.
   await supabase.from("plan_votes").insert({ option_id: data.id, user_id: user.id });
@@ -170,7 +171,7 @@ export async function removeOption(
 ): Promise<FormState> {
   const supabase = await createClient();
   const { error } = await supabase.from("plan_options").delete().eq("id", optionId);
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error, "rooms") };
   revalidatePath(`/g/${slug}/align/${planId}`);
   return {};
 }
@@ -197,7 +198,7 @@ export async function toggleVote(
     const { error } = await supabase
       .from("plan_votes")
       .insert({ option_id: optionId, user_id: user.id });
-    if (error) return { error: error.message };
+    if (error) return { error: friendly(error, "rooms") };
   }
 
   revalidatePath(`/g/${slug}/align/${planId}`);
@@ -220,7 +221,7 @@ export async function setAttendance(
       { onConflict: "plan_id,user_id" },
     );
 
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error, "rooms") };
 
   revalidatePath(`/g/${slug}/align/${planId}`);
   return {};
@@ -241,7 +242,7 @@ export async function lockPlan(
   finalLocation: string | null,
   finalBudget: string | null,
 ): Promise<FormState> {
-  if (!finalDate) return { error: "Pick a date first — that's the whole point." };
+  if (!finalDate) return { error: "Pick a date first. That's the whole point." };
   if (!finalLocation) return { error: "Where, though?" };
 
   const supabase = await createClient();
@@ -255,7 +256,7 @@ export async function lockPlan(
     })
     .eq("id", planId);
 
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error, "rooms") };
 
   revalidatePath(`/g/${slug}/align`);
   revalidatePath(`/g/${slug}/align/${planId}`);
@@ -265,7 +266,7 @@ export async function lockPlan(
 export async function unlockPlan(planId: string, slug: string): Promise<FormState> {
   const supabase = await createClient();
   const { error } = await supabase.from("plans").update({ status: "open" }).eq("id", planId);
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error, "rooms") };
   revalidatePath(`/g/${slug}/align/${planId}`);
   return {};
 }
@@ -305,7 +306,7 @@ export async function addCreation(
     .select("id")
     .single();
 
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error, "rooms") };
 
   await supabase
     .from("create_members")
@@ -365,7 +366,7 @@ export async function setCreateRole(
     .eq("create_id", createId)
     .eq("user_id", user.id);
 
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error, "rooms") };
   revalidatePath(`/g/${slug}/create/${createId}`);
   return {};
 }
@@ -381,7 +382,7 @@ export async function setCreateStatus(
     .update({ status })
     .eq("id", createId);
 
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error, "rooms") };
 
   revalidatePath(`/g/${slug}/create`);
   revalidatePath(`/g/${slug}/create/${createId}`);
@@ -395,7 +396,7 @@ export async function scheduleShoot(createId: string, slug: string): Promise<For
     creation: createId,
   });
 
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error, "rooms") };
 
   revalidatePath(`/g/${slug}/create`);
   revalidatePath(`/g/${slug}/align`);
@@ -449,7 +450,7 @@ export async function captureToVault(planId: string, slug: string): Promise<Form
     .select("id")
     .single();
 
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error, "rooms") };
 
   const { data: attending } = await supabase
     .from("plan_members")
@@ -500,7 +501,7 @@ export async function finishCreation(
       revalidatePath(`/g/${slug}/create/${createId}`);
       return { message: "Marked as done. The link needs migration 0006 (npm run db:push) before it can be saved." };
     }
-    return { error: error.message };
+    return { error: friendly(error, "rooms") };
   }
 
   revalidatePath(`/g/${slug}/create`);

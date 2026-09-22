@@ -517,3 +517,46 @@ a.pulse-item:hover { background: rgba(255, 255, 255, 0.04); }
 .sk-posters { display: grid; gap: 2rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr)); }
 .sk-posters .sk:first-child { grid-column: 1 / -1; max-width: 40rem; }
 .sk-prints { display: grid; gap: 2rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr)); }
+
+/* ---------------------------------------------------------------- lineage
+
+   TEA to ONE DAY to ALIGN to the VAULT: where a memory came from, drawn as a short
+   route with the room it passed through. Only rows that still exist are shown.
+   ------------------------------------------------------------------------- */
+
+.lineage {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.4rem 0;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8125rem;
+}
+
+.lineage li { display: grid; gap: 0.1rem; padding-right: 1.6rem; position: relative; }
+
+.lineage li:not(:last-child)::after {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.45rem;
+  width: 0.7rem;
+  height: 1px;
+  background: var(--fg-4);
+  content: "";
+}
+
+.lineage span { color: var(--fg-3); font-size: 0.6875rem; }
+.lineage a,
+.lineage b { color: var(--fg); font-weight: 600; }
+.lineage a { text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+.lineage a:hover { text-decoration-color: currentColor; }
+
+.lineage-next { display: grid; justify-items: start; gap: 0.75rem; padding-top: 1.25rem; border-top: 1px solid var(--line); }
+a.lineage-next { display: inline-flex; align-items: center; gap: 0.5rem; color: var(--fg); font-weight: 600; }
+.lineage-next .lede { margin: 0; }
+
+.sk-frames { display: grid; gap: 1.5rem; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; }
+.sk-frame[data-lead="true"] { grid-column: span 2; grid-row: span 2; }
+@media (max-width: 700px) { .sk-frames { grid-template-columns: 1fr; } .sk-frame[data-lead="true"] { grid-column: auto; } }

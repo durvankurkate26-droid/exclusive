@@ -24,33 +24,61 @@
 .ref[data-size="large"] { aspect-ratio: 16 / 10; }
 .ref img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.8s var(--ease-out); }
 
-.ref-slip {
+.ref-slate {
   position: absolute;
   inset: 0;
   display: grid;
-  align-content: end;
-  gap: 0.35rem;
-  padding: 1.1rem 1.25rem;
+  gap: 0.75rem;
+  padding: 0 1.25rem 1.1rem;
   background:
-    radial-gradient(80% 70% at 100% 0%, color-mix(in srgb, var(--light) 30%, transparent), transparent 65%),
+    radial-gradient(80% 70% at 100% 100%, color-mix(in srgb, var(--light) 22%, transparent), transparent 65%),
     var(--ground);
   color: var(--ink);
+  grid-template-rows: auto 1fr auto;
 }
 
-.ref-slip b {
+/* The clapper: a striped bar hinged slightly open, in the creation's own light. */
+.ref-clapper {
+  height: clamp(1.4rem, 3vw, 2rem);
+  margin: 0 -1.25rem;
+  background: repeating-linear-gradient(-55deg, var(--light) 0 14px, #0b0910 14px 28px);
+  opacity: 0.9;
+  transform: rotate(-3deg) translateY(-4px);
+  transform-origin: left bottom;
+  transition: transform 0.35s var(--ease-out);
+}
+
+.ref-slate-title {
+  display: -webkit-box;
+  align-self: end;
   overflow: hidden;
   font-family: var(--font-display);
-  font-size: clamp(1.8rem, 4vw, 3rem);
-  font-weight: 400;
-  letter-spacing: 0.02em;
+  font-size: clamp(1.6rem, 3.2vw, 2.4rem);
   line-height: 0.95;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
-.ref[data-size="large"] .ref-slip b { font-size: clamp(2.5rem, 6vw, 4.5rem); }
-.ref-slip i { color: var(--light); font-family: var(--font-mono); font-size: 0.625rem; font-style: normal; letter-spacing: 0.24em; }
-.ref[data-kind="blank"] .ref-slip i { position: absolute; top: 0.5rem; right: 1rem; color: color-mix(in srgb, var(--light) 25%, transparent); font-family: var(--font-display); font-size: 7rem; letter-spacing: 0; }
+.ref[data-size="large"] .ref-slate-title { font-size: clamp(2.4rem, 5vw, 4rem); }
+
+.ref-slate-rows {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid color-mix(in srgb, var(--ink) 25%, transparent);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+.ref-slate-rows span { display: grid; gap: 0.15rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ref-slate-rows i { color: var(--light); font-size: 0.5625rem; font-style: normal; letter-spacing: 0.2em; }
+
+/* Reaching for a make snaps the clapper shut: the one gesture that means "action". */
+@media (hover: hover) and (pointer: fine) {
+  .make:hover .ref-clapper,
+  .shipped:hover .ref-clapper { transform: rotate(0deg) translateY(0); }
+}
 
 /* Viewfinder corners: the studio's signature, drawn once and shared by every frame. */
 .ref-corners {

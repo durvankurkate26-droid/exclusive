@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { requireGroup } from "@/lib/data/session";
+import { requireGroup, roomContext } from "@/lib/data/session";
 import { listIdeas } from "@/lib/data/one-day";
 import { firstName, toPeople } from "@/components/app/People";
 import { AddIdea } from "@/components/oneday/AddIdea";
@@ -26,8 +26,11 @@ const SMALL_FORMATS = ["ticket", "postcard", "polaroid"] as const satisfies read
 export default async function OneDayPage({ params, searchParams }: PageProps<"/g/[slug]/one-day">) {
   const { slug } = await params;
   const { new: wantsNew } = await searchParams;
-  const { group, profile } = await requireGroup(slug);
-  const { ideas, promoted, memberCount, avatars } = await listIdeas(group.id, profile.id);
+  const { groupId, viewerId } = await roomContext(slug);
+  const [{ group, profile }, { ideas, promoted, memberCount, avatars }] = await Promise.all([
+    requireGroup(slug),
+    listIdeas(groupId, viewerId),
+  ]);
 
   const me = { id: profile.id, name: profile.display_name, url: avatars.get(profile.id) ?? null };
   const majority = Math.max(2, Math.ceil(memberCount / 2));

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { Photo } from "@/components/app/Photo";
 
 export type RailItem = {
   id: string;
@@ -48,8 +49,7 @@ export function OlderRail({ items }: { items: RailItem[] }) {
             </button>
             <Link id={`rail-${item.id}`} href={item.href} className="rail-print" tabIndex={open ? 0 : -1} aria-hidden={!open}>
               {item.cover ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={item.cover} alt="" loading="lazy" decoding="async" />
+                <Photo src={item.cover} sizes="(max-width: 900px) 100vw, 40vw" />
               ) : (
                 <span className="rail-plate" aria-hidden="true">{item.date.split(" ")[0]}</span>
               )}

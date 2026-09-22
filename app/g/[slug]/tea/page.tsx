@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { requireGroup } from "@/lib/data/session";
+import { requireGroup, roomContext } from "@/lib/data/session";
 import { listTeas } from "@/lib/data/tea";
 import { AvatarStack } from "@/components/app/Avatar";
 import { toPeople } from "@/components/app/People";
@@ -22,8 +22,8 @@ export const dynamic = "force-dynamic";
 export default async function TeaPage({ params, searchParams }: PageProps<"/g/[slug]/tea">) {
   const { slug } = await params;
   const { new: wantsNew } = await searchParams;
-  const { group } = await requireGroup(slug);
-  const { teas, avatars } = await listTeas(group.id);
+  const { groupId } = await roomContext(slug);
+  const [{ group }, { teas, avatars }] = await Promise.all([requireGroup(slug), listTeas(groupId)]);
 
   const brewing = teas.filter((t) => t.status === "brewing");
   const done = teas.filter((t) => t.status !== "brewing");

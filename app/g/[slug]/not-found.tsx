@@ -9,7 +9,7 @@ export default function GroupNotFound() {
         <span>Nothing here.</span>
       </p>
       <p className="empty-hint">
-        It was deleted, or it belongs to another group. Those look the same from out here — on purpose.
+        It was deleted, or it belongs to another group. Those look the same from out here, on purpose.
       </p>
       <Link className="btn" href="/app">Back to your groups</Link>
     </div>

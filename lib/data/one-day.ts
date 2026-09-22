@@ -2,6 +2,7 @@ import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
 import { resolveAvatars } from "@/lib/data/media";
+import { getGroupMembers } from "@/lib/data/session";
 import type { OneDayIdea, Profile } from "@/lib/supabase/database.types";
 
 /**
@@ -19,46 +20,29 @@ export type IdeaSummary = OneDayIdea & {
   mine: boolean;
 };
 
-async function attachInterest(
-  ideas: OneDayIdea[],
-  viewerId: string,
-): Promise<{ withPeople: Array<OneDayIdea & { people: Profile[]; mine: boolean }>; profiles: Profile[] }> {
-  if (ideas.length === 0) return { withPeople: [], profiles: [] };
+type IdeaRow = OneDayIdea & {
+  profiles: Profile | null;
+  one_day_interest: Array<{ interested: boolean; profiles: Profile | null }>;
+};
 
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("one_day_interest")
-    .select("idea_id, user_id, profiles:user_id(*)")
-    .in(
-      "idea_id",
-      ideas.map((idea) => idea.id),
-    )
-    .eq("interested", true);
-
-  const byIdea = new Map<string, Profile[]>();
-  const everyone: Profile[] = [];
-  for (const row of data ?? []) {
-    const profile = (row as unknown as { profiles: Profile | null }).profiles;
-    if (!profile) continue;
-    byIdea.set(row.idea_id, [...(byIdea.get(row.idea_id) ?? []), profile]);
-    everyone.push(profile);
-  }
-
-  return {
-    withPeople: ideas.map((idea) => {
-      const people = byIdea.get(idea.id) ?? [];
-      return { ...idea, people, mine: people.some((p) => p.id === viewerId) };
-    }),
-    profiles: everyone,
-  };
+/** Hands are embedded in the idea's own query; this just unpacks them. */
+function unpack(row: IdeaRow, viewerId: string): IdeaSummary {
+  const { profiles: author, one_day_interest, ...idea } = row;
+  const people = (one_day_interest ?? [])
+    .filter((entry) => entry.interested)
+    .map((entry) => entry.profiles)
+    .filter((p): p is Profile => Boolean(p));
+  return { ...(idea as OneDayIdea), author: author ?? null, people, mine: people.some((p) => p.id === viewerId) };
 }
+
+const IDEA_SELECT = "*, profiles:created_by(*), one_day_interest(interested, profiles:user_id(*))";
 
 /**
  * The wall.
  *
  * Ordered by hands raised, not by date. ONE DAY is a list of futures competing for
  * the group's attention, and the one eight people want should not be below the one
- * somebody typed this morning.
+ * somebody typed this morning. One request: every idea with its hands embedded.
  */
 export async function listIdeas(
   groupId: string,
@@ -71,26 +55,16 @@ export async function listIdeas(
 }> {
   const supabase = await createClient();
 
-  const [{ data: rows }, { data: memberRows }] = await Promise.all([
+  const [{ data: rows }, members] = await Promise.all([
     supabase
       .from("one_day_ideas")
-      .select("*, profiles:created_by(*)")
+      .select(IDEA_SELECT)
       .eq("group_id", groupId)
       .order("created_at", { ascending: false }),
-    supabase.from("group_members").select("user_id").eq("group_id", groupId),
+    getGroupMembers(groupId),
   ]);
 
-  const base = (rows ?? []).map((row) => ({
-    ...(row as unknown as OneDayIdea),
-    author: (row as unknown as { profiles: Profile | null }).profiles ?? null,
-  }));
-
-  const { withPeople, profiles } = await attachInterest(base, viewerId);
-
-  const merged: IdeaSummary[] = withPeople.map((idea, index) => ({
-    ...idea,
-    author: base[index].author,
-  }));
+  const merged = ((rows ?? []) as unknown as IdeaRow[]).map((row) => unpack(row, viewerId));
 
   const live = merged
     .filter((idea) => idea.status === "idea" || idea.status === "ready_to_plan")
@@ -105,21 +79,17 @@ export async function listIdeas(
   );
 
   const avatars = await resolveAvatars([
-    ...profiles,
+    ...merged.flatMap((i) => i.people),
     ...merged.map((i) => i.author).filter((a): a is Profile => Boolean(a)),
   ]);
 
-  return {
-    ideas: live,
-    promoted,
-    memberCount: memberRows?.length ?? 0,
-    avatars,
-  };
+  return { ideas: live, promoted, memberCount: members.length, avatars };
 }
 
 export async function getIdea(
   ideaId: string,
   viewerId: string,
+  groupId: string,
 ): Promise<{
   idea: IdeaSummary | null;
   memberCount: number;
@@ -129,36 +99,26 @@ export async function getIdea(
 }> {
   const supabase = await createClient();
 
-  const { data: row } = await supabase
-    .from("one_day_ideas")
-    .select("*, profiles:created_by(*)")
-    .eq("id", ideaId)
-    .maybeSingle();
+  const [{ data: row }, members] = await Promise.all([
+    supabase
+      .from("one_day_ideas")
+      .select(`${IDEA_SELECT}, plans(id, created_at)`)
+      .eq("id", ideaId)
+      .eq("group_id", groupId)
+      .maybeSingle(),
+    getGroupMembers(groupId),
+  ]);
 
-  if (!row) return { idea: null, memberCount: 0, planId: null, avatars: new Map() };
+  if (!row) return { idea: null, memberCount: members.length, planId: null, avatars: new Map() };
 
-  const base = row as unknown as OneDayIdea;
-  const author = (row as unknown as { profiles: Profile | null }).profiles ?? null;
-
-  const [{ withPeople, profiles }, { data: memberRows }, { data: plan }] =
-    await Promise.all([
-      attachInterest([base], viewerId),
-      supabase.from("group_members").select("user_id").eq("group_id", base.group_id),
-      supabase
-        .from("plans")
-        .select("id")
-        .eq("source_idea_id", base.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-    ]);
-
-  const idea = withPeople[0];
+  const { plans, ...rest } = row as unknown as IdeaRow & { plans: Array<{ id: string; created_at: string }> };
+  const idea = unpack(rest as IdeaRow, viewerId);
+  const plan = [...(plans ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
 
   return {
-    idea: { ...idea, author },
-    memberCount: memberRows?.length ?? 0,
+    idea,
+    memberCount: members.length,
     planId: plan?.id ?? null,
-    avatars: await resolveAvatars([...profiles, ...(author ? [author] : [])]),
+    avatars: await resolveAvatars([...idea.people, ...(idea.author ? [idea.author] : [])]),
   };
 }

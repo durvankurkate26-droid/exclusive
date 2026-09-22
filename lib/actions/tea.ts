@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { friendly } from "@/lib/errors";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getUser } from "@/lib/data/session";
@@ -31,7 +32,7 @@ export async function startTea(_prev: FormState, formData: FormData): Promise<Fo
     .select("id")
     .single();
 
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error, "tea") };
 
   revalidatePath(`/g/${slug}/tea`);
   redirect(`/g/${slug}/tea/${data.id}`);
@@ -56,7 +57,7 @@ export async function sendMessage(teaId: string, content: string): Promise<FormS
     .from("tea_messages")
     .insert({ tea_id: teaId, user_id: user.id, content: trimmed });
 
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error, "tea") };
 
   // Bumping the parent is what keeps the tea list and Home ordered by real activity.
   await supabase.from("teas").update({ updated_at: new Date().toISOString() }).eq("id", teaId);
@@ -90,7 +91,7 @@ export async function toggleReaction(
     .from("tea_reactions")
     .insert({ message_id: messageId, user_id: user.id, reaction });
 
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error, "tea") };
   return {};
 }
 
@@ -101,7 +102,7 @@ export async function setTeaStatus(
 ): Promise<FormState> {
   const supabase = await createClient();
   const { error } = await supabase.from("teas").update({ status }).eq("id", teaId);
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error, "tea") };
 
   revalidatePath(`/g/${slug}/tea`);
   revalidatePath(`/g/${slug}/tea/${teaId}`);

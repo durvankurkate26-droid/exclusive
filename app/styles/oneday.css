@@ -196,16 +196,17 @@
 
 @media (max-width: 860px) { .wall-lead { grid-template-columns: 1fr; } }
 
+/* A pinboard, not a masonry of equal cards: a grid that always fills its width,
+   with every other column dropped a little so the prints don't line up like tiles. */
 .wall {
-  columns: 3 18rem;
-  column-gap: clamp(1.5rem, 3.5vw, 2.75rem);
+  display: grid;
+  align-items: start;
+  gap: clamp(2rem, 4.5vw, 3rem) clamp(1.5rem, 3.5vw, 2.75rem);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
 }
 
-.wall > .idea {
-  display: inline-grid;
-  width: 100%;
-  margin: 0 0 clamp(2rem, 4.5vw, 3rem);
-  break-inside: avoid;
+@media (min-width: 700px) {
+  .wall > .idea:nth-child(3n + 2) { margin-top: clamp(1.5rem, 4vw, 3rem); }
 }
 
 /* ---------------------------------------------------------------- the hand */

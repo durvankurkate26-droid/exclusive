@@ -17,12 +17,18 @@ export type TeaMessageWithAuthor = TeaMessage & {
   reactions: Array<{ reaction: string; userIds: string[] }>;
 };
 
+/** How much recent conversation the list reads to find each tea's last line and voices. */
+const LIST_WINDOW = 400;
+/** How far back a conversation loads. Older lines are still stored, just not rendered. */
+const THREAD_WINDOW = 300;
+
 /**
  * Tea list, grouped by status by the caller.
  *
- * The message count and the participant faces come from one extra query each for the
- * whole page rather than per-tea — nine conversations would otherwise be eighteen
- * round trips before anything renders.
+ * One round trip: the teas (with an exact per-tea message count embedded) and the
+ * group's most recent messages are fetched side by side. The recent window is what
+ * the list actually shows — each tea's last line and who has been talking — so there
+ * is no need to read every message ever sent just to count them.
  */
 export async function listTeas(groupId: string): Promise<{
   teas: TeaSummary[];
@@ -30,41 +36,47 @@ export async function listTeas(groupId: string): Promise<{
 }> {
   const supabase = await createClient();
 
-  const { data: rows } = await supabase
-    .from("teas")
-    .select("*, profiles:created_by(*)")
-    .eq("group_id", groupId)
-    .order("updated_at", { ascending: false });
+  const [{ data: rows }, { data: messages }] = await Promise.all([
+    supabase
+      .from("teas")
+      .select("*, profiles:created_by(*), tea_messages(count)")
+      .eq("group_id", groupId)
+      .order("updated_at", { ascending: false }),
+    supabase
+      .from("tea_messages")
+      .select("tea_id, user_id, content, created_at, profiles:user_id(*), teas!inner(group_id)")
+      .eq("teas.group_id", groupId)
+      .order("created_at", { ascending: false })
+      .limit(LIST_WINDOW),
+  ]);
 
-  const teas = (rows ?? []).map((row) => ({
-    ...(row as unknown as Tea),
-    author: (row as unknown as { profiles: Profile | null }).profiles ?? null,
-    messageCount: 0,
-    voices: [] as Profile[],
-    last: null as TeaSummary["last"],
-  }));
+  const teas = (rows ?? []).map((row) => {
+    const r = row as unknown as Tea & { profiles: Profile | null; tea_messages: Array<{ count: number }> };
+    const { profiles, tea_messages, ...tea } = r;
+    return {
+      ...(tea as Tea),
+      author: profiles ?? null,
+      messageCount: tea_messages?.[0]?.count ?? 0,
+      voices: [] as Profile[],
+      last: null as TeaSummary["last"],
+    };
+  });
 
   if (teas.length === 0) return { teas, avatars: new Map() };
 
-  const ids = teas.map((tea) => tea.id);
-  const { data: messages } = await supabase
-    .from("tea_messages")
-    .select("tea_id, user_id, content, created_at, profiles:user_id(*)")
-    .in("tea_id", ids)
-    .order("created_at", { ascending: true });
-
-  const counts = new Map<string, number>();
   const lasts = new Map<string, TeaSummary["last"]>();
   const voices = new Map<string, Map<string, Profile>>();
 
+  // Newest first, so the first line seen per tea is its last line.
   for (const row of messages ?? []) {
-    counts.set(row.tea_id, (counts.get(row.tea_id) ?? 0) + 1);
     const profile = (row as unknown as { profiles: Profile | null }).profiles;
-    lasts.set(row.tea_id, {
-      content: row.content,
-      author: profile?.display_name.split(" ")[0] ?? "someone",
-      at: row.created_at,
-    });
+    if (!lasts.has(row.tea_id)) {
+      lasts.set(row.tea_id, {
+        content: row.content,
+        author: profile?.display_name.split(" ")[0] ?? "someone",
+        at: row.created_at,
+      });
+    }
     if (!profile) continue;
     const perTea = voices.get(row.tea_id) ?? new Map<string, Profile>();
     perTea.set(profile.id, profile);
@@ -72,7 +84,6 @@ export async function listTeas(groupId: string): Promise<{
   }
 
   for (const tea of teas) {
-    tea.messageCount = counts.get(tea.id) ?? 0;
     tea.voices = [...(voices.get(tea.id)?.values() ?? [])];
     tea.last = lasts.get(tea.id) ?? null;
   }
@@ -85,6 +96,12 @@ export async function listTeas(groupId: string): Promise<{
   return { teas, avatars: await resolveAvatars(everyone) };
 }
 
+/**
+ * One conversation: the tea, its recent messages and their reactions, in a single
+ * round trip. Reactions are scoped through their message's tea with an inner join
+ * rather than by first fetching the message ids — that pre-fetch used to hide a third
+ * sequential request inside what looked like a parallel one.
+ */
 export async function getTea(teaId: string): Promise<{
   tea: (Tea & { author: Profile | null }) | null;
   messages: TeaMessageWithAuthor[];
@@ -93,32 +110,21 @@ export async function getTea(teaId: string): Promise<{
   const supabase = await createClient();
 
   // RLS returns nothing for a tea in another group, so a bad id is simply "not found".
-  const { data: teaRow } = await supabase
-    .from("teas")
-    .select("*, profiles:created_by(*)")
-    .eq("id", teaId)
-    .maybeSingle();
-
-  if (!teaRow) return { tea: null, messages: [], avatars: new Map() };
-
-  const [{ data: messageRows }, { data: reactionRows }] = await Promise.all([
+  const [{ data: teaRow }, { data: messageRows }, { data: reactionRows }] = await Promise.all([
+    supabase.from("teas").select("*, profiles:created_by(*)").eq("id", teaId).maybeSingle(),
     supabase
       .from("tea_messages")
       .select("*, profiles:user_id(*)")
       .eq("tea_id", teaId)
-      .order("created_at", { ascending: true }),
+      .order("created_at", { ascending: false })
+      .limit(THREAD_WINDOW),
     supabase
       .from("tea_reactions")
-      .select("message_id, reaction, user_id")
-      .in(
-        "message_id",
-        // Scoped by the message list below; an empty `in` would match nothing, which
-        // is the correct result for a conversation with no messages yet.
-        (
-          await supabase.from("tea_messages").select("id").eq("tea_id", teaId)
-        ).data?.map((m) => m.id) ?? [],
-      ),
+      .select("message_id, reaction, user_id, tea_messages!inner(tea_id)")
+      .eq("tea_messages.tea_id", teaId),
   ]);
+
+  if (!teaRow) return { tea: null, messages: [], avatars: new Map() };
 
   const grouped = new Map<string, Map<string, string[]>>();
   for (const row of reactionRows ?? []) {
@@ -127,14 +133,20 @@ export async function getTea(teaId: string): Promise<{
     grouped.set(row.message_id, perMessage);
   }
 
-  const messages: TeaMessageWithAuthor[] = (messageRows ?? []).map((row) => ({
-    ...(row as unknown as TeaMessage),
-    author: (row as unknown as { profiles: Profile | null }).profiles ?? null,
-    reactions: [...(grouped.get(row.id)?.entries() ?? [])].map(([reaction, userIds]) => ({
-      reaction,
-      userIds,
-    })),
-  }));
+  const messages: TeaMessageWithAuthor[] = (messageRows ?? [])
+    .slice()
+    .reverse()
+    .map((row) => {
+      const { profiles, ...message } = row as unknown as TeaMessage & { profiles: Profile | null };
+      return {
+        ...(message as TeaMessage),
+        author: profiles ?? null,
+        reactions: [...(grouped.get(message.id)?.entries() ?? [])].map(([reaction, userIds]) => ({
+          reaction,
+          userIds,
+        })),
+      };
+    });
 
   const author = (teaRow as unknown as { profiles: Profile | null }).profiles ?? null;
   const people = [

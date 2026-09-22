@@ -1,21 +1,21 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { requireGroup } from "@/lib/data/session";
+import { requireGroup, roomContext } from "@/lib/data/session";
 import { listCapsules, type CapsuleSummary } from "@/lib/data/vault";
 import { Avatar, AvatarStack } from "@/components/app/Avatar";
 import { firstName, toPeople } from "@/components/app/People";
 import { CreateCapsule } from "@/components/vault/CreateCapsule";
 import { OlderRail } from "@/components/vault/OlderRail";
+import { Photo } from "@/components/app/Photo";
 import { tilt } from "@/lib/art";
-import { shortDate } from "@/lib/format";
+import { dayMonth, dayOfMonth, monthYear, shortDate } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Vault · EXCLUSIVE" };
 export const dynamic = "force-dynamic";
 
 const RECENT = 4;
 
-const monthDay = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" }).toUpperCase() : "UNDATED";
+const monthDay = (iso: string | null) => (iso ? dayMonth(iso) : "UNDATED");
 
 /**
  * VAULT — don't browse files, enter a memory.
@@ -29,8 +29,8 @@ const monthDay = (iso: string | null) =>
 export default async function VaultPage({ params, searchParams }: PageProps<"/g/[slug]/vault">) {
   const { slug } = await params;
   const { new: wantsNew, who } = await searchParams;
-  const { group } = await requireGroup(slug);
-  const { capsules: all, avatars } = await listCapsules(group.id);
+  const { groupId } = await roomContext(slug);
+  const [{ group }, { capsules: all, avatars }] = await Promise.all([requireGroup(slug), listCapsules(groupId)]);
 
   // Everyone who appears in any memory, most-remembered first.
   const faceCount = new Map<string, { profile: CapsuleSummary["people"][number]; n: number }>();
@@ -51,8 +51,12 @@ export default async function VaultPage({ params, searchParams }: PageProps<"/g/
   // back to the newest memory only when nothing has been uploaded anywhere yet.
   const featured = capsules.find((c) => c.coverUrl) ?? capsules[0];
   const rest = capsules.filter((c) => c !== featured);
-  const recent = rest.slice(0, RECENT);
-  const older = rest.slice(RECENT);
+  // Photographs lead. A memory nobody has added photos to yet is still a memory, but
+  // it waits in its own quiet row rather than taking a big slot as an empty frame.
+  const photographed = rest.filter((c) => c.mediaCount > 0);
+  const waiting = rest.filter((c) => c.mediaCount === 0);
+  const recent = photographed.slice(0, RECENT);
+  const older = photographed.slice(RECENT);
 
   // Timeline: every capsule with a date, grouped by year, oldest on the left.
   const dated = [...all].filter((c) => c.memory_date).sort((a, b) => a.memory_date!.localeCompare(b.memory_date!));
@@ -69,7 +73,7 @@ export default async function VaultPage({ params, searchParams }: PageProps<"/g/
             <span>Then bring it back here.</span>
           </p>
           <p className="empty-hint">
-            Every capsule holds the photos, who was there and the things people said — somewhere they won&apos;t get
+            Every capsule holds the photos, who was there and the things people said, somewhere they won&apos;t get
             buried under 400 messages.
           </p>
           <CreateCapsule groupId={group.id} slug={slug} defaultOpen={wantsNew === "1"} />
@@ -80,17 +84,17 @@ export default async function VaultPage({ params, searchParams }: PageProps<"/g/
 
   return (
     <div className="vault">
+      <h1 className="sr-only">The vault</h1>
       {/* -------------------------------------------------------------- the memory */}
       {featured && (
         <Link className="vault-feature" href={`${base}/${featured.id}`} data-empty={!featured.coverUrl}>
           <span className="vault-feature-image" aria-hidden="true">
             {featured.coverUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={featured.coverUrl} alt="" decoding="async" fetchPriority="high" />
+              <Photo src={featured.coverUrl} sizes="100vw" priority />
             ) : (
               <span className="film-leader">
-                <b>{featured.memory_date ? new Date(featured.memory_date).getDate() : "∞"}</b>
-                <i>{featured.memory_date ? new Date(featured.memory_date).toLocaleDateString(undefined, { month: "long", year: "numeric" }).toUpperCase() : "SOMETIME"}</i>
+                <b>{featured.memory_date ? dayOfMonth(featured.memory_date) : "∞"}</b>
+                <i>{featured.memory_date ? monthYear(featured.memory_date) : "SOMETIME"}</i>
               </span>
             )}
           </span>
@@ -99,10 +103,10 @@ export default async function VaultPage({ params, searchParams }: PageProps<"/g/
               {featured.memory_date ? shortDate(featured.memory_date) : "Undated"} ·{" "}
               {featured.mediaCount === 0 ? "no photos yet" : `${featured.mediaCount} photos`}
             </span>
-            <span className="display vault-feature-title">{featured.title}</span>
+            <h2 className="display vault-feature-title">{featured.title}</h2>
             {featured.fragment && (
               <span className="vault-feature-quote">
-                “{featured.fragment.note}” <em>— {firstName(featured.fragment.author?.display_name)}</em>
+                “{featured.fragment.note}” <em>{firstName(featured.fragment.author?.display_name)}</em>
               </span>
             )}
             {featured.people.length > 0 && (
@@ -177,7 +181,7 @@ export default async function VaultPage({ params, searchParams }: PageProps<"/g/
 
       {whoName && (
         <p className="vault-filter-line">
-          Every memory with <strong>{firstName(whoName)}</strong> in it — {capsules.length}.{" "}
+          Every memory with <strong>{firstName(whoName)}</strong> in it: {capsules.length}.{" "}
           <Link href={base}>Show everyone</Link>
         </p>
       )}
@@ -199,16 +203,13 @@ export default async function VaultPage({ params, searchParams }: PageProps<"/g/
                       className="stack-print"
                       style={{ ["--r" as string]: `${j === 0 ? 0 : tilt(m.id, 5)}deg`, ["--j" as string]: j }}
                     >
-                      {m.url && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={m.url} alt="" loading="lazy" decoding="async" />
-                      )}
+                      <Photo src={m.url} eager={i === 0} sizes={i === 0 ? "(max-width: 900px) 100vw, 60vw" : "(max-width: 900px) 50vw, 35vw"} />
                     </span>
                   ))
                 ) : (
                   <span className="stack-print stack-print-empty" style={{ ["--r" as string]: "0deg", ["--j" as string]: 0 }}>
                     <span className="film-leader film-leader-sm">
-                      <b>{c.memory_date ? new Date(c.memory_date).getDate() : "—"}</b>
+                      <b>{c.memory_date ? dayOfMonth(c.memory_date) : "?"}</b>
                     </span>
                   </span>
                 )}
@@ -222,6 +223,33 @@ export default async function VaultPage({ params, searchParams }: PageProps<"/g/
               </span>
             </Link>
           ))}
+        </section>
+      )}
+
+      {/* -------------------------------------------------------------- still waiting */}
+      {waiting.length > 0 && (
+        <section className="vault-waiting" aria-labelledby="waiting-h">
+          <h2 className="section-title" id="waiting-h">
+            Waiting for photos <span className="meta">{waiting.length}</span>
+          </h2>
+          <ul>
+            {waiting.map((c) => (
+              <li key={c.id}>
+                <Link href={`${base}/${c.id}`} className="waiting">
+                  <span className="waiting-plate" aria-hidden="true">
+                    {c.memory_date ? dayOfMonth(c.memory_date) : "?"}
+                  </span>
+                  <span className="waiting-text">
+                    <span className="display">{c.title}</span>
+                    <span className="meta">
+                      {monthDay(c.memory_date)}
+                      {c.people.length > 0 && `, ${c.people.length} were there`}
+                    </span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 

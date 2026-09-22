@@ -2,7 +2,7 @@
    HOME — the living room.
    =========================================================================== */
 
-.home { display: grid; gap: clamp(2.5rem, 6vw, 4.5rem); }
+.home { display: grid; gap: clamp(2.5rem, 6vw, 4.5rem); grid-template-columns: minmax(0, 1fr); }
 
 /* ---------------------------------------------------------------- the pulse */
 
@@ -41,42 +41,34 @@
 
 @keyframes rise { from { opacity: 0; transform: translateY(0.25em); } }
 
+/* Five ways in, each carrying its room's glyph and light. A row of verbs, not five
+   equal buttons: the headline stays the loudest thing on the page. */
 .home-start {
   grid-area: start;
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.35rem 1.1rem;
-  margin: 0;
-  color: var(--fg-3);
-  font-size: 0.9375rem;
+  align-items: center;
+  gap: 0.25rem 0.4rem;
+  margin-left: -0.7rem;
 }
-
-.home-start-label { color: var(--fg-4); }
 
 .home-start a {
-  position: relative;
-  padding: 0.35rem 0;
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0 0.7rem;
+  border-radius: 999px;
   color: var(--fg-2);
+  font-size: 0.9375rem;
   font-weight: 500;
-  transition: color 0.2s ease;
+  transition: color 0.2s ease, background-color 0.2s ease;
 }
 
-.home-start a::after {
-  position: absolute;
-  right: 0;
-  bottom: 0.1rem;
-  left: 0;
-  height: 1px;
-  background: var(--room);
-  content: "";
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 0.3s var(--ease-out);
-}
-
-.home-start a:hover { color: var(--fg); }
-.home-start a:hover::after { transform: scaleX(1); }
+.home-start a svg { color: var(--room); transition: transform 0.25s var(--ease-out); }
+.home-start a:hover { color: var(--fg); background: color-mix(in srgb, var(--room) 12%, transparent); }
+.home-start a:hover svg { transform: rotate(-8deg) scale(1.1); }
+.home-start a:active { transform: scale(0.96); }
 
 /* Who has been around: a loose cluster, most recent biggest and brightest. */
 .home-around {
@@ -126,20 +118,107 @@
 
 .home-body {
   display: grid;
+  align-items: start;
   gap: clamp(2rem, 4vw, 3.5rem) clamp(2rem, 4vw, 4rem);
   grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
-  grid-template-areas:
-    "now lately"
-    "house house";
 }
-
-.home-now { grid-area: now; }
-.home-lately { grid-area: lately; }
-.home-house { grid-area: house; }
 
 @media (max-width: 960px) {
-  .home-body { grid-template-columns: 1fr; grid-template-areas: "now" "house" "lately"; }
+  .home-body { grid-template-columns: 1fr; }
 }
+
+/* ---------------------------------------------------------------- the strip
+
+   A contact strip of the group's own photographs, running under the headline the
+   way the landing page's photo trail runs under its wordmark. Prints sit slightly
+   crooked and straighten when you reach for one. It scrolls sideways on phones
+   rather than wrapping into a grid of thumbnails.
+   ------------------------------------------------------------------------- */
+
+.home-strip { margin-top: calc(clamp(2.5rem, 6vw, 4.5rem) * -0.4); margin-right: calc(var(--gutter) * -1); }
+
+.strip {
+  display: flex;
+  align-items: flex-end;
+  gap: clamp(0.75rem, 1.6vw, 1.25rem);
+  margin: 0;
+  padding: 1.25rem var(--gutter) 1rem 0;
+  overflow-x: auto;
+  list-style: none;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  /* Runs off the right edge into the gutter, so it reads as more than what fits. */
+  mask-image: linear-gradient(90deg, #000 calc(100% - var(--gutter) * 2), transparent);
+}
+
+.strip::-webkit-scrollbar { display: none; }
+
+.strip-frame { flex: none; scroll-snap-align: start; }
+
+.strip-frame a { display: grid; gap: 0.55rem; width: clamp(8.5rem, 15vw, 13rem); }
+
+/* Alternate portrait and landscape-ish prints so the strip has a rhythm. */
+.strip-frame:nth-child(3n + 2) a { width: clamp(10rem, 19vw, 16rem); }
+
+.strip-print {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  aspect-ratio: 4 / 5;
+  border-radius: 4px;
+  background: var(--ink-3);
+  outline: 1px solid rgba(255, 255, 255, 0.1);
+  outline-offset: -1px;
+  box-shadow: 0 18px 36px -18px rgba(0, 0, 0, 0.9);
+  transform: rotate(var(--t));
+  transition: transform 0.35s var(--ease-out), box-shadow 0.35s ease;
+}
+
+.strip-frame:nth-child(3n + 2) .strip-print { aspect-ratio: 5 / 4; }
+
+.strip-print img { transition: transform 0.6s var(--ease-out); }
+
+.strip-caption {
+  overflow: hidden;
+  color: var(--fg-3);
+  font-size: 0.75rem;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .strip-frame a:hover .strip-print { transform: rotate(0deg) translateY(-4px); box-shadow: 0 26px 40px -18px rgba(0, 0, 0, 0.95); }
+  .strip-frame a:hover img { transform: scale(1.04); }
+  .strip-frame a:hover .strip-caption { color: var(--fg); }
+}
+
+.strip-frame a:focus-visible .strip-print { transform: rotate(0deg); }
+
+.strip-caption[data-first="true"] { color: var(--fg-2); font-weight: 600; }
+
+.strip-end { display: grid; flex: none; align-self: center; padding: 0 1rem; white-space: nowrap; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .strip-frame { animation: print-in 0.5s var(--ease-out) backwards; animation-delay: calc(var(--i) * 45ms + 120ms); }
+}
+
+@keyframes print-in { from { opacity: 0; transform: translateY(14px); } }
+
+/* ---------------------------------------------------------------- room tag */
+
+/* The room a thing lives in, said after the thing: glyph + a few words. Replaces
+   the label-above-the-heading habit, so each title is the first thing read. */
+.room-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: color-mix(in srgb, var(--room) 55%, var(--fg-2));
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.room-tag svg { flex: none; color: var(--room); }
 
 /* ---------------------------------------------------------------- the one big thing */
 
@@ -148,7 +227,6 @@
   display: grid;
   align-content: start;
   gap: 1.1rem;
-  min-height: 100%;
   padding: clamp(1.5rem, 3.5vw, 2.75rem);
   border-radius: 24px;
   background:
@@ -160,13 +238,6 @@
 
 a.now:hover { transform: translateY(-3px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 40px 70px -30px rgba(0, 0, 0, 0.8); }
 a.now:active { transform: translateY(-1px) scale(0.995); }
-
-.now-where {
-  color: color-mix(in srgb, var(--room) 70%, white);
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  letter-spacing: 0.12em;
-}
 
 .now-title { max-width: 16ch; font-size: clamp(2.6rem, 6vw, 4.75rem); }
 
@@ -224,21 +295,14 @@ a.now:hover .now-blockers li { transform: rotate(0deg); }
   gap: 0.7rem;
   padding: 0.7rem 0;
   border-bottom: 1px solid var(--line);
-  grid-template-columns: 7px minmax(0, 1fr) auto;
+  grid-template-columns: 15px minmax(0, 1fr) auto;
   transition: transform 0.25s var(--ease-out);
 }
 
 .lately-list li:last-child a { border-bottom: 0; }
 .lately-list a:hover { transform: translateX(0.3rem); }
 
-.lately-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--dot);
-  box-shadow: 0 0 8px var(--dot);
-  transform: translateY(-1px);
-}
+.lately-glyph { color: var(--room); transform: translateY(2px); }
 
 .lately-text { color: var(--fg-2); font-size: 0.9rem; line-height: 1.45; }
 .lately-text strong { color: var(--fg); font-weight: 600; }
@@ -288,30 +352,11 @@ a.now:hover .now-blockers li { transform: rotate(0deg); }
 }
 
 .house-memory-frame img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
   transition: transform 0.9s var(--ease-out), filter 0.6s ease;
   filter: saturate(0.9) contrast(1.02);
 }
 
 .house-memory:hover .house-memory-frame img { transform: scale(1.03); filter: saturate(1.05); }
-
-/* No photo yet: a film leader — the day of the month, huge, like a contact sheet. */
-.house-memory-plate {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  background:
-    radial-gradient(60% 60% at 30% 30%, color-mix(in srgb, var(--room) 22%, transparent), transparent 70%),
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 22px),
-    #140f1d;
-  color: color-mix(in srgb, var(--room) 60%, transparent);
-  font-family: var(--font-display);
-  font-size: clamp(6rem, 14vw, 11rem);
-  line-height: 1;
-}
 
 .house-memory-text { display: grid; gap: 0.35rem; }
 .house-memory-title { font-size: clamp(1.8rem, 3.5vw, 2.6rem); }
@@ -333,8 +378,8 @@ a.now:hover .now-blockers li { transform: rotate(0deg); }
 
 .house-ticket:hover { transform: rotate(0deg) translateY(-4px); }
 
-.house-ticket-main { display: grid; align-content: start; gap: 0.6rem; padding: 1.25rem 1.25rem 1.4rem; }
-.house-ticket-kind { color: var(--light); font-family: var(--font-mono); font-size: 0.625rem; letter-spacing: 0.2em; }
+.house-ticket-main { display: grid; align-content: start; gap: 0.6rem; padding: 1.4rem 1.25rem 1.25rem; }
+.house-ticket-kind { margin-top: 0.4rem; color: var(--light); font-size: 0.75rem; font-weight: 500; }
 .house-ticket-title { font-size: clamp(1.8rem, 3vw, 2.4rem); }
 .house-ticket-note { opacity: 0.8; font-size: 0.8125rem; }
 
@@ -386,7 +431,6 @@ a.now:hover .now-blockers li { transform: rotate(0deg); }
   border-bottom: 1px solid var(--line);
 }
 
-.house-make .now-where { flex-basis: 100%; }
 .house-make-title { font-size: clamp(1.7rem, 3vw, 2.3rem); transition: color 0.2s ease; }
 .house-make:hover .house-make-title { color: color-mix(in srgb, var(--room) 50%, white); }
 .house-make-crew { display: inline-flex; align-items: center; gap: 0.6rem; }

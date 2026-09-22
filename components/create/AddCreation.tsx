@@ -51,7 +51,7 @@ export function AddCreation({ groupId, slug, defaultOpen }: { groupId: string; s
               <label className="field-label" htmlFor="make-ref">The reference <span className="field-hint">the reel, the video, the post</span></label>
               <input id="make-ref" className="input" name="reference_url" type="url" inputMode="url" placeholder="https://youtube.com/shorts/…" autoFocus />
             </div>
-            <label className="sr-only" htmlFor="make-title">What we're making</label>
+            <label className="sr-only" htmlFor="make-title">What we&apos;re making</label>
             <input id="make-title" className="input input-title" name="title" placeholder="Recreate this reel" maxLength={120} required />
             <div className="field">
               <label className="field-label" htmlFor="make-desc">The idea <span className="field-hint">optional</span></label>

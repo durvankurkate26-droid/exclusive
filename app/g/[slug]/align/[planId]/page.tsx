@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { requireGroup, getGroupMembers } from "@/lib/data/session";
+import { requireGroup, getGroupMembers, roomContext } from "@/lib/data/session";
 import { getPlan, type Blocker } from "@/lib/data/align";
 import { resolveAvatars } from "@/lib/data/media";
 import { AvatarStack } from "@/components/app/Avatar";
@@ -48,13 +48,14 @@ const dateLabel = (value: string) => (/^\d{4}-\d{2}-\d{2}/.test(value) ? shortDa
  */
 export default async function PlanRoom({ params }: PageProps<"/g/[slug]/align/[planId]">) {
   const { slug, planId } = await params;
-  const { group, profile } = await requireGroup(slug);
-  const [{ plan, avatars }, members] = await Promise.all([
-    getPlan(planId, profile.id),
-    getGroupMembers(group.id),
+  const { groupId, viewerId } = await roomContext(slug);
+  const [{ profile }, { plan, avatars }, members] = await Promise.all([
+    requireGroup(slug),
+    getPlan(planId, viewerId, groupId),
+    getGroupMembers(groupId),
   ]);
 
-  if (!plan || plan.group_id !== group.id) notFound();
+  if (!plan) notFound();
 
   const memberAvatars = await resolveAvatars(members.map((m) => m.profile));
   const av = new Map([...memberAvatars, ...avatars]);
@@ -174,12 +175,12 @@ export default async function PlanRoom({ params }: PageProps<"/g/[slug]/align/[p
           <dl className="happening-facts">
             <div>
               <dt className="meta">WHEN</dt>
-              <dd className="display">{plan.final_date ? shortDate(plan.final_date) : "—"}</dd>
+              <dd className="display">{plan.final_date ? shortDate(plan.final_date) : "TBD"}</dd>
               {plan.final_date && <dd className="happening-sub">{fullDate(plan.final_date)}</dd>}
             </div>
             <div>
               <dt className="meta">WHERE</dt>
-              <dd className="display">{plan.final_location ?? "—"}</dd>
+              <dd className="display">{plan.final_location ?? "TBD"}</dd>
             </div>
             {plan.final_budget && (
               <div>
@@ -296,7 +297,7 @@ export default async function PlanRoom({ params }: PageProps<"/g/[slug]/align/[p
               <details className="settled settled-optional">
                 <summary>
                   <span className="display">Money?</span>
-                  <span className="settled-answer">optional — only if it matters</span>
+                  <span className="settled-answer">optional, only if it matters</span>
                 </summary>
                 <div className="settled-body">
                   <Ballot planId={plan.id} slug={slug} type="budget" options={[]} me={me} total={total} locked={false} placeholder={PLACEHOLDER.budget} />

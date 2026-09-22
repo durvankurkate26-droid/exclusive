@@ -46,7 +46,7 @@
 .portrait:focus-visible .portrait-face,
 .portrait:focus-within .portrait-face { transform: rotate(0deg) translateY(-4px) scale(1.04); }
 
-.portrait:focus-visible { outline: 2px solid var(--room); outline-offset: 8px; border-radius: 12px; }
+
 
 .portrait-text { display: grid; gap: 0.3rem; }
 .portrait-name { display: flex; align-items: baseline; gap: 0.6rem; font-size: clamp(1.8rem, 3vw, 2.3rem); }
@@ -175,3 +175,81 @@
 .settings-danger .danger { padding-top: 0; border-top: 0; }
 
 .form-ok { margin: 0; color: #9dffd6; font-size: 0.8125rem; }
+
+/* ---------------------------------------------------------------- the memories they're in */
+
+.portrait-memories { display: flex; align-items: center; gap: 0.9rem; }
+
+.portrait-prints { position: relative; display: block; width: 5.5rem; height: 3.6rem; flex: none; }
+
+.portrait-print {
+  position: absolute;
+  top: 0;
+  left: calc(var(--j) * 1.1rem);
+  z-index: calc(3 - var(--j));
+  width: 3.2rem;
+  height: 3.6rem;
+  overflow: hidden;
+  border: 3px solid var(--paper, #efe4d4);
+  border-bottom-width: 8px;
+  border-radius: 2px;
+  background: var(--ink-3);
+  box-shadow: 0 8px 16px -8px rgba(0, 0, 0, 0.9);
+  transform: rotate(var(--r));
+  transition: transform 0.3s var(--ease-out);
+}
+
+.portrait-print:hover,
+.portrait-print:focus-visible { z-index: 5; transform: rotate(0deg) translateY(-4px) scale(1.08); }
+
+.portrait-memories-line { color: var(--fg-2); font-size: 0.8125rem; font-weight: 500; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+.portrait-memories-line:hover { color: var(--fg); text-decoration-color: currentColor; }
+
+/* Admin controls fold away under the person. Present for admins, never the point. */
+.member-manage summary {
+  display: inline-flex;
+  min-height: 2.25rem;
+  align-items: center;
+  color: var(--fg-3);
+  cursor: pointer;
+  font-size: 0.75rem;
+  list-style: none;
+}
+.member-manage summary::-webkit-details-marker { display: none; }
+.member-manage summary::after { margin-left: 0.4rem; content: "+"; }
+.member-manage[open] summary::after { content: "2"; }
+.member-manage summary:hover { color: var(--fg); }
+
+/* ---------------------------------------------------------------- invite prints */
+
+.invite { position: relative; overflow: hidden; }
+
+.invite-prints {
+  position: absolute;
+  top: 50%;
+  right: clamp(1.5rem, 6vw, 5rem);
+  display: block;
+  width: clamp(9rem, 22vw, 17rem);
+  aspect-ratio: 4 / 5;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.invite-print {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border: 6px solid var(--paper, #efe4d4);
+  border-bottom-width: 20px;
+  border-radius: 3px;
+  box-shadow: 0 24px 40px -18px rgba(0, 0, 0, 0.9);
+  transform: rotate(calc((var(--j) - 1.5) * 6deg)) translateX(calc((var(--j) - 1.5) * 1.2rem));
+}
+
+.invite-link { margin: 0; color: var(--fg-3); font-family: var(--font-mono); font-size: 0.8125rem; overflow-wrap: anywhere; }
+
+@media (max-width: 760px) {
+  .invite-prints { position: relative; top: auto; right: auto; width: 9rem; margin: 0 0 1rem 1.5rem; transform: none; }
+}
+
+@media (min-width: 761px) { .invite > :not(.invite-prints) { max-width: calc(100% - clamp(11rem, 28vw, 22rem)); } }

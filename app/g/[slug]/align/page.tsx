@@ -1,13 +1,14 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { requireGroup } from "@/lib/data/session";
+import { requireGroup, roomContext } from "@/lib/data/session";
 import { listPlans, type PlanSummary } from "@/lib/data/align";
 import { AvatarStack } from "@/components/app/Avatar";
+import { RoomGlyph } from "@/components/app/Icons";
 import { toPeople } from "@/components/app/People";
 import { CreatePlan } from "@/components/align/CreatePlan";
 import { ROOM_BY_KEY } from "@/lib/constants/rooms";
 import { tilt } from "@/lib/art";
-import { shortDate, timeAgo } from "@/lib/format";
+import { dayOfMonth, daysUntil, shortDate, timeAgo } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Align · EXCLUSIVE" };
 export const dynamic = "force-dynamic";
@@ -25,8 +26,11 @@ const room = ROOM_BY_KEY.align;
 export default async function AlignPage({ params, searchParams }: PageProps<"/g/[slug]/align">) {
   const { slug } = await params;
   const { new: wantsNew } = await searchParams;
-  const { group } = await requireGroup(slug);
-  const { open, locked, done, memberCount, avatars } = await listPlans(group.id);
+  const { groupId } = await roomContext(slug);
+  const [{ group }, { open, locked, done, memberCount, avatars }] = await Promise.all([
+    requireGroup(slug),
+    listPlans(groupId),
+  ]);
 
   const nothing = open.length + locked.length + done.length === 0;
 
@@ -61,18 +65,53 @@ export default async function AlignPage({ params, searchParams }: PageProps<"/g/
         <section className="happening-list" aria-labelledby="happening-h">
           <h2 className="section-title" id="happening-h">It&apos;s happening</h2>
           <ul>
-            {locked.map((plan) => (
-              <li key={plan.id}>
-                <Link href={`/g/${slug}/align/${plan.id}`} className="happening-row">
-                  <span className="happening-date display">{plan.final_date ? shortDate(plan.final_date) : "—"}</span>
-                  <span className="happening-name display">{plan.title}</span>
-                  <span className="happening-place">{plan.final_location}</span>
-                  <AvatarStack people={toPeople(plan.people, avatars)} max={6} size={26} />
-                </Link>
-              </li>
-            ))}
+            {locked.map((plan) => {
+              const days = plan.final_date ? daysUntil(plan.final_date) : null;
+              return (
+                <li key={plan.id}>
+                  {/* A locked plan is a ticket: straight, stamped, nothing left to argue about. */}
+                  <Link href={`/g/${slug}/align/${plan.id}`} className="plan-ticket">
+                    <span className="plan-ticket-date" aria-hidden={!plan.final_date}>
+                      {plan.final_date ? (
+                        <>
+                          <b className="display">{dayOfMonth(plan.final_date)}</b>
+                          <span>{shortDate(plan.final_date).split(" ")[0]} {shortDate(plan.final_date).split(" ")[2]}</span>
+                        </>
+                      ) : (
+                        <b className="display">?</b>
+                      )}
+                    </span>
+                    <span className="plan-ticket-body">
+                      <span className="display plan-ticket-title">{plan.title}</span>
+                      <span className="plan-ticket-where">
+                        {plan.final_location ?? "Place TBD"}
+                        {days !== null && days >= 0 && (
+                          <em>{days === 0 ? "Today" : days === 1 ? "Tomorrow" : `In ${days} days`}</em>
+                        )}
+                      </span>
+                      {plan.from && (
+                        <span className="plan-ticket-from">
+                          Started as {plan.from.room === "one-day" ? "a someday" : "a make"}: {plan.from.title}
+                        </span>
+                      )}
+                    </span>
+                    <span className="plan-ticket-stub">
+                      {plan.people.length > 0 && <AvatarStack people={toPeople(plan.people, avatars)} max={5} size={26} />}
+                      <span className="display">{plan.inCount}/{memberCount} going</span>
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </section>
+      )}
+
+      {open.length === 0 && !nothing && (
+        <p className="align-calm">
+          Nothing&apos;s stuck right now. Start a plan, or take a{" "}
+          <Link href={`/g/${slug}/one-day`}>someday with enough hands</Link> and make it real.
+        </p>
       )}
 
       {open.length > 0 && (
@@ -114,11 +153,20 @@ export default async function AlignPage({ params, searchParams }: PageProps<"/g/
           <h2 className="section-title" id="done-h">Done &amp; dusted</h2>
           <ul>
             {done.map((plan) => (
-              <li key={plan.id}>
-                <Link href={`/g/${slug}/align/${plan.id}`}>
-                  <span>{plan.title}</span>
+              <li key={plan.id} className="done-row">
+                <Link href={`/g/${slug}/align/${plan.id}`} className="done-plan">
+                  <span className="done-title">{plan.title}</span>
                   <span className="meta">{plan.final_date ? shortDate(plan.final_date) : plan.status}</span>
                 </Link>
+                {plan.memoryId ? (
+                  <Link className="done-memory" href={`/g/${slug}/vault/${plan.memoryId}`}>
+                    <RoomGlyph room="vault" width={14} height={14} aria-hidden="true" /> In the vault
+                  </Link>
+                ) : plan.status === "done" ? (
+                  <Link className="done-memory" href={`/g/${slug}/vault?new=1`}>
+                    <RoomGlyph room="vault" width={14} height={14} aria-hidden="true" /> Turn it into a memory
+                  </Link>
+                ) : null}
               </li>
             ))}
           </ul>

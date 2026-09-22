@@ -3,8 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLayoutEffect, useRef, useState } from "react";
-import { ROOMS, roomFromPath, roomHref } from "@/lib/constants/rooms";
+import { ROOMS, roomFromPath, roomHref, type RoomKey } from "@/lib/constants/rooms";
+
 import { RoomGlyph } from "./Icons";
+
+/** Members and Settings live under the group but are not rooms: no rail item is lit. */
+function activeRoom(pathname: string, slug: string): RoomKey | null {
+  return /\/(members|settings)(\/|$)/.test(pathname.slice(`/g/${slug}`.length)) ? null : roomFromPath(pathname, slug);
+}
 
 /**
  * The room rail.
@@ -17,7 +23,7 @@ import { RoomGlyph } from "./Icons";
  */
 export function RoomNav({ slug }: { slug: string }) {
   const pathname = usePathname();
-  const active = roomFromPath(pathname, slug);
+  const active = activeRoom(pathname, slug);
   const listRef = useRef<HTMLUListElement>(null);
   const previous = useRef<string | null>(null);
   const [box, setBox] = useState<{ x: number; w: number; travel: boolean } | null>(null);
@@ -88,18 +94,16 @@ export function RoomNav({ slug }: { slug: string }) {
  */
 export function MobileDock({ slug }: { slug: string }) {
   const pathname = usePathname();
-  const active = roomFromPath(pathname, slug);
-  const index = Math.max(
-    0,
-    ROOMS.findIndex((room) => room.key === active),
-  );
+  const active = activeRoom(pathname, slug);
+  const index = ROOMS.findIndex((room) => room.key === active);
 
   return (
     <nav className="room-dock" aria-label="Rooms">
       <span
         className="room-dock-indicator"
         aria-hidden="true"
-        style={{ transform: `translateX(${index * 100}%)` }}
+        data-hidden={index < 0}
+        style={{ transform: `translateX(${Math.max(0, index) * 100}%)` }}
       />
       {ROOMS.map((room) => {
         const isActive = room.key === active;

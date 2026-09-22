@@ -49,7 +49,7 @@ export async function AppShell({
 
       <header className="app-bar">
         <div className="app-bar-left">
-          <Link className="app-brand" href={`/g/${group.slug}`} aria-label={`EXCLUSIVE — ${group.name} home`}>
+          <Link className="app-brand" href={`/g/${group.slug}`} aria-label={`EXCLUSIVE, ${group.name} home`}>
             EXCLUSIVE
           </Link>
           <Link className="app-group" href={`/g/${group.slug}/members`}>

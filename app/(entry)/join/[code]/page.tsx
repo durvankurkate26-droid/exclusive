@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { AuthIntro } from "@/components/auth/AuthIntro";
@@ -70,9 +71,9 @@ export default async function InvitePage({ params }: PageProps<"/join/[code]">) 
           Nothing to do here.
         </AuthIntro>
         <div className="auth-card">
-          <a className="auth-submit entry-choice-primary" href="/app">
+          <Link className="auth-submit entry-choice-primary" href="/app">
             Go to the group ↗
-          </a>
+          </Link>
         </div>
       </>
     );

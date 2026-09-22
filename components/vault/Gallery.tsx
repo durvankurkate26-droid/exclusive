@@ -56,7 +56,8 @@ export function Gallery({
 }) {
   const [index, setIndex] = useState<number | null>(null);
   const [pending, startTransition] = useTransition();
-  const [caption, setCaption] = useState("");
+  // The draft belongs to one photo; stepping to another shows that photo's caption.
+  const [draft, setDraft] = useState<{ id: string; text: string } | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   const open = index === null ? null : items[index];
@@ -68,9 +69,8 @@ export function Gallery({
     if (index === null && dialog.open) dialog.close();
   }, [index]);
 
-  useEffect(() => {
-    setCaption(open?.caption ?? "");
-  }, [open?.id, open?.caption]);
+  const caption = draft && draft.id === open?.id ? draft.text : (open?.caption ?? "");
+  const setCaption = (text: string) => open && setDraft({ id: open.id, text });
 
   const step = useCallback(
     (delta: number) =>

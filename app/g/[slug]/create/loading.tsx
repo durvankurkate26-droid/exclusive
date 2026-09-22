@@ -1,5 +1,5 @@
-import { PosterSkeleton } from "@/components/app/Skeletons";
+import { StudioSkeleton } from "@/components/app/Skeletons";
 
 export default function Loading() {
-  return <PosterSkeleton />;
+  return <StudioSkeleton />;
 }

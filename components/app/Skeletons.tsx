@@ -69,3 +69,19 @@ export function PlanSkeleton() {
     </div>
   );
 }
+
+/** CREATE: reference frames, the wide one leading, with a slate bar across the top. */
+export function StudioSkeleton() {
+  return (
+    <div className="sk-room" aria-busy="true" aria-label="Loading the studio">
+      <HeadlineSkeleton lines={1} />
+      <div className="sk-frames">
+        {[0, 1, 2].map((i) => (
+          <span key={i} className="sk-frame" data-lead={i === 0}>
+            <S w="100%" h={i === 0 ? "22rem" : "13rem"} r={4} />
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}

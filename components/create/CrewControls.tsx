@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useOptimistic, useState, useTransition } from "react";
 import { finishCreation, scheduleShoot, setCreateRole, setCreateStatus, toggleCreateJoin } from "@/lib/actions/rooms";
 import { CREATE_ROLES, CREATE_ROLE_LABEL } from "@/lib/constants/create";
@@ -156,7 +157,7 @@ export function Lifecycle({
       <div className="lifecycle-next">
         {(current === "idea" || current === "people_joining") &&
           (planId ? (
-            <a className="btn btn-lit" href={`/g/${slug}/align/${planId}`}>Open the shoot plan</a>
+            <Link className="btn btn-lit" href={`/g/${slug}/align/${planId}`}>Open the shoot plan</Link>
           ) : (
             <button className="btn btn-lit" type="button" disabled={pending || crewCount === 0} onClick={schedule}>
               Schedule the shoot
@@ -165,7 +166,7 @@ export function Lifecycle({
         {current === "scheduled" && (
           <>
             <button className="btn btn-lit" type="button" disabled={pending} onClick={() => move("shot", "It's in the can.")}>We shot it</button>
-            {planId && <a className="go go-quiet" href={`/g/${slug}/align/${planId}`}>The shoot plan</a>}
+            {planId && <Link className="go go-quiet" href={`/g/${slug}/align/${planId}`}>The shoot plan</Link>}
           </>
         )}
         {current === "shot" && (

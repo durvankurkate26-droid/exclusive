@@ -539,20 +539,20 @@
     opacity: 0;
     pointer-events: none;
     transform-origin: left;
-    animation: tea-strike 0.62s var(--ease-out);
+    animation: tea-strike 0.5s var(--ease-out);
   }
 
   /* CREATE — the frame opens like a viewfinder. */
-  .stage[data-room="create"] { animation: frame-open 0.52s var(--ease-drawer) backwards; }
+  .stage[data-room="create"] { animation: frame-open 0.48s var(--ease-drawer) backwards; }
 
   /* ONE DAY — a window onto somewhere else. */
-  .stage[data-room="one-day"] { animation: portal-open 0.6s var(--ease-drawer) backwards; }
+  .stage[data-room="one-day"] { animation: portal-open 0.5s var(--ease-drawer) backwards; }
 
   /* ALIGN — things snap from slightly off to exactly right. */
   .stage[data-room="align"] { animation: snap-in 0.5s var(--ease-io) backwards; }
 
   /* VAULT — the room goes dark, then the photographs develop. */
-  .stage[data-room="vault"] { animation: develop 0.65s var(--ease-out) backwards; }
+  .stage[data-room="vault"] { animation: develop 0.5s var(--ease-out) backwards; }
 
   /* Deeper pages inside a room get only the quiet version. */
   .stage[data-depth="detail"] { animation: stage-in 0.3s var(--ease-out) backwards !important; }
@@ -578,9 +578,10 @@
   from { opacity: 0; transform: translateX(-14px) rotate(-0.6deg); }
   60% { opacity: 1; }
 }
+/* Opacity and scale only: a filter on a page full of photographs repaints all of them
+   on every frame. The "developing" lives in the photos' own entrance instead. */
 @keyframes develop {
-  from { opacity: 0; filter: brightness(0.3) saturate(0.4); transform: scale(1.012); }
-  50% { opacity: 1; }
+  from { opacity: 0; transform: scale(1.012); }
 }
 
 /* ---------------------------------------------------------------- utilities */
@@ -601,3 +602,8 @@
   .bar-faces { display: none; }
   .room-nav-list a { padding-inline: 0.6rem; }
 }
+
+/* A modal sheet or drawer holds the page still behind it (native <dialog> does not). */
+html:has(dialog[open]) { overflow: hidden; }
+
+.room-dock-indicator[data-hidden="true"] { opacity: 0; }

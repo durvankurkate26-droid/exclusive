@@ -78,7 +78,7 @@ export function LockBar({
     return (
       <div className="lockbar" data-ready="false">
         <p className="lockbar-line">
-          Can&apos;t lock it yet — nobody has suggested {missing.length === 2 ? "a date or a place" : missing[0] === "date" ? "a date" : "a place"}.
+          Can&apos;t lock it yet. Nobody has suggested {missing.length === 2 ? "a date or a place" : missing[0] === "date" ? "a date" : "a place"}.
         </p>
       </div>
     );
@@ -142,7 +142,7 @@ export function CaptureToVault({ planId, slug }: { planId: string; slug: string 
         })
       }
     >
-      {pending ? "Opening the vault…" : "It happened — keep it"}
+      {pending ? "Opening the vault…" : "It happened. Keep it"}
     </button>
   );
 }

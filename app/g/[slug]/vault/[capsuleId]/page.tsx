@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { requireGroup, getGroupMembers } from "@/lib/data/session";
+import { requireGroup, getGroupMembers, roomContext } from "@/lib/data/session";
 import { getCapsule } from "@/lib/data/vault";
 import { resolveAvatars } from "@/lib/data/media";
 import { Avatar, AvatarStack } from "@/components/app/Avatar";
@@ -10,7 +10,7 @@ import { firstName, toPeople } from "@/components/app/People";
 import { Gallery, type GalleryItem } from "@/components/vault/Gallery";
 import { MediaUploader } from "@/components/vault/MediaUploader";
 import { CapsuleAdmin, DeleteNote, NoteComposer, ParticipantPicker } from "@/components/vault/CapsuleControls";
-import { fullDate, timeAgo } from "@/lib/format";
+import { dayOfMonth, fullDate, monthYear, msSince, timeAgo } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Memory · EXCLUSIVE" };
 export const dynamic = "force-dynamic";
@@ -26,13 +26,14 @@ export const dynamic = "force-dynamic";
  */
 export default async function CapsuleDetail({ params }: PageProps<"/g/[slug]/vault/[capsuleId]">) {
   const { slug, capsuleId } = await params;
-  const { group, profile, role } = await requireGroup(slug);
-  const [{ capsule, avatars }, members] = await Promise.all([
-    getCapsule(capsuleId, profile.id),
-    getGroupMembers(group.id),
+  const { groupId, viewerId } = await roomContext(slug);
+  const [{ group, profile, role }, { capsule, avatars }, members] = await Promise.all([
+    requireGroup(slug),
+    getCapsule(capsuleId, viewerId, groupId),
+    getGroupMembers(groupId),
   ]);
 
-  if (!capsule || capsule.group_id !== group.id) notFound();
+  if (!capsule) notFound();
 
   const memberAvatars = await resolveAvatars(members.map((m) => m.profile));
   const av = new Map([...memberAvatars, ...avatars]);
@@ -49,8 +50,7 @@ export default async function CapsuleDetail({ params }: PageProps<"/g/[slug]/vau
 
   const canDelete = capsule.created_by === profile.id || role === "owner" || role === "admin";
   const [quote, ...otherNotes] = capsule.notes;
-  const fresh = capsule.media.length === 0 && Date.now() - new Date(capsule.created_at).getTime() < 10 * 60 * 1000;
-  const date = capsule.memory_date ? new Date(capsule.memory_date) : null;
+  const fresh = capsule.media.length === 0 && msSince(capsule.created_at) < 10 * 60 * 1000;
 
   return (
     <article className="capsule">
@@ -66,14 +66,40 @@ export default async function CapsuleDetail({ params }: PageProps<"/g/[slug]/vau
             <img src={capsule.coverUrl} alt="" fetchPriority="high" decoding="async" />
           ) : (
             <span className="film-leader">
-              <b>{date ? date.getDate() : "∞"}</b>
-              <i>{date ? date.toLocaleDateString(undefined, { month: "long", year: "numeric" }).toUpperCase() : "SOMETIME"}</i>
+              <b>{capsule.memory_date ? dayOfMonth(capsule.memory_date) : "∞"}</b>
+              <i>{capsule.memory_date ? monthYear(capsule.memory_date) : "SOMETIME"}</i>
             </span>
           )}
         </span>
         <div className="capsule-hero-text">
           <p className="meta capsule-date">{capsule.memory_date ? fullDate(capsule.memory_date).toUpperCase() : "NO DATE ON IT"}</p>
           <h1 className="display capsule-title">{capsule.title}</h1>
+          {(capsule.lineage.idea || capsule.lineage.create || capsule.lineage.plan) && (
+            <ol className="lineage" aria-label="How this happened">
+              {capsule.lineage.idea && (
+                <li>
+                  <span>Started as a someday</span>
+                  <Link href={`/g/${slug}/one-day/${capsule.lineage.idea.id}`}>{capsule.lineage.idea.title}</Link>
+                </li>
+              )}
+              {capsule.lineage.create && (
+                <li>
+                  <span>Made in the studio</span>
+                  <Link href={`/g/${slug}/create/${capsule.lineage.create.id}`}>{capsule.lineage.create.title}</Link>
+                </li>
+              )}
+              {capsule.lineage.plan && (
+                <li>
+                  <span>Planned in Align</span>
+                  <Link href={`/g/${slug}/align/${capsule.lineage.plan.id}`}>{capsule.lineage.plan.title}</Link>
+                </li>
+              )}
+              <li aria-current="step">
+                <span>Kept</span>
+                <b>here</b>
+              </li>
+            </ol>
+          )}
           {capsule.people.length > 0 && (
             <p className="capsule-people">
               <AvatarStack people={toPeople(capsule.people, av)} max={9} size={32} />
@@ -156,8 +182,13 @@ export default async function CapsuleDetail({ params }: PageProps<"/g/[slug]/vau
             </div>
           )}
 
-          <p className="capsule-kept meta">
-            Kept by {capsule.author?.display_name ?? "someone"} · {capsule.media.length} {capsule.media.length === 1 ? "photo" : "photos"}
+          {/* A div, not a <p>: CapsuleAdmin renders a <dialog> with a heading, which a
+              paragraph cannot contain — the browser would split it and break hydration. */}
+          <div className="capsule-kept meta">
+            <p>
+              Kept by {capsule.author?.display_name ?? "someone"} · {capsule.media.length}{" "}
+              {capsule.media.length === 1 ? "photo" : "photos"}
+            </p>
             <CapsuleAdmin
               capsuleId={capsule.id}
               slug={slug}
@@ -167,7 +198,7 @@ export default async function CapsuleDetail({ params }: PageProps<"/g/[slug]/vau
               photoCount={capsule.media.length}
               canDelete={canDelete}
             />
-          </p>
+          </div>
         </footer>
       </div>
     </article>

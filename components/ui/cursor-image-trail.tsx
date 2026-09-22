@@ -60,14 +60,21 @@ export function CursorImageTrail({
   children,
 }: CursorImageTrailProps) {
   const [trail, setTrail] = React.useState<TrailItem[]>([]);
+  // Disabling drops whatever the trail is holding — adjusted during render, which is
+  // React's pattern for resetting state on a prop change without an effect.
+  const [wasEnabled, setWasEnabled] = React.useState(enabled);
+  if (enabled !== wasEnabled) {
+    setWasEnabled(enabled);
+    if (!enabled) setTrail([]);
+  }
   const lastPos = React.useRef<{ x: number; y: number } | null>(null);
   const itemCounter = React.useRef(0);
   const containerElRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     if (!enabled) {
+      // The trail itself is cleared during render when `enabled` flips (see above).
       lastPos.current = null;
-      setTrail([]);
       return;
     }
     const el = containerRef?.current ?? containerElRef.current ?? window;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useSyncExternalStore, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 
 /**
@@ -14,10 +14,18 @@ type Toast = { id: number; content: ReactNode; tone: "ok" | "error"; leaving?: b
 
 let queue: Toast[] = [];
 let nextId = 1;
-const listeners = new Set<(toasts: Toast[]) => void>();
+const listeners = new Set<() => void>();
+const NONE: Toast[] = [];
 
 function emit() {
-  for (const listener of listeners) listener(queue);
+  for (const listener of listeners) listener();
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 }
 
 export function toast(content: ReactNode, tone: "ok" | "error" = "ok") {
@@ -49,7 +57,7 @@ function dismiss(id: number) {
 }
 
 export function Toaster() {
-  const [toasts, setToasts] = useState<Toast[]>([]);
+  const toasts = useSyncExternalStore(subscribe, () => queue, () => NONE);
   const pathname = usePathname();
 
   useEffect(() => {
@@ -61,14 +69,6 @@ export function Toaster() {
       }
     } catch {}
   }, [pathname]);
-
-  useEffect(() => {
-    listeners.add(setToasts);
-    setToasts(queue);
-    return () => {
-      listeners.delete(setToasts);
-    };
-  }, []);
 
   return (
     <div className="toasts" aria-live="polite" aria-atomic="false">

@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
+import { forgetArrival, useArrivalValue, useHydrated } from "@/lib/client-store";
+import { clockTime, dayLabel } from "@/lib/format";
 import { createClient } from "@/lib/supabase/client";
 import { sendMessage, toggleReaction } from "@/lib/actions/tea";
-import { Avatar } from "@/components/app/Avatar";
+import { Avatar, AvatarStack } from "@/components/app/Avatar";
 import { Send } from "@/components/app/Icons";
 import { toast } from "@/components/app/Toast";
 import { firstName } from "@/components/app/People";
@@ -55,11 +57,14 @@ export function TeaRoom({
   initialMessages,
   me,
   canPost,
+  timeZone,
 }: {
   teaId: string;
   initialMessages: ClientMessage[];
   me: Me;
   canPost: boolean;
+  /** The viewer's zone as the server knows it, so both sides render the same clock. */
+  timeZone: string;
 }) {
   const [messages, setMessages] = useState(initialMessages);
   const [pending, startTransition] = useTransition();
@@ -68,13 +73,11 @@ export function TeaRoom({
   const [present, setPresent] = useState<Array<{ id: string; name: string }>>([]);
   const [typing, setTyping] = useState<Record<string, number>>({});
   const [fresh, setFresh] = useState<Set<string>>(new Set());
-  const [lastSeen] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem(`tea-seen:${teaId}`);
-    } catch {
-      return null;
-    }
-  });
+  // Where you got to last time, frozen at arrival. Null on the server and while
+  // hydrating, so the "new since you left" divider can't cause a mismatch.
+  const lastSeen = useArrivalValue(`tea-seen:${teaId}`);
+  const hydrated = useHydrated();
+  const landed = useRef(false);
 
   const streamRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
@@ -84,8 +87,13 @@ export function TeaRoom({
 
   const [optimistic, addOptimistic] = useOptimistic(messages, (current, next: ClientMessage) => [...current, next]);
 
+  // Who we already know, so a live message from someone in the conversation doesn't
+  // cost a profile request before it can appear.
+  const knownAuthors = useRef(new Map<string, NonNullable<ClientMessage["author"]>>());
+
   useEffect(() => {
     knownIds.current = new Set(messages.map((m) => m.id));
+    for (const m of messages) if (m.author) knownAuthors.current.set(m.user_id, m.author);
   }, [messages]);
 
   /* ------------------------------------------------------------ realtime */
@@ -113,24 +121,22 @@ export function TeaRoom({
           { event: "INSERT", schema: "public", table: "tea_messages", filter: `tea_id=eq.${teaId}` },
           async (payload) => {
             const row = payload.new as { id: string; user_id: string; content: string; created_at: string };
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("id, display_name")
-              .eq("id", row.user_id)
-              .maybeSingle();
-            setMessages((current) => {
-              if (current.some((m) => m.id === row.id)) return current;
-              // Keep the signed avatar we already have for this person, if any.
-              const known = current.find((m) => m.user_id === row.user_id)?.author?.url ?? null;
-              return [
-                ...current,
-                {
-                  ...row,
-                  author: profile ? { id: profile.id, name: profile.display_name, url: row.user_id === me.id ? me.url : known } : null,
-                  reactions: [],
-                },
-              ];
-            });
+            let author: ClientMessage["author"] =
+              row.user_id === me.id
+                ? { id: me.id, name: me.name, url: me.url }
+                : (knownAuthors.current.get(row.user_id) ?? null);
+            if (!author) {
+              // First time this person speaks here: one lookup, then remembered.
+              const { data: profile } = await supabase
+                .from("profiles")
+                .select("id, display_name")
+                .eq("id", row.user_id)
+                .maybeSingle();
+              author = profile ? { id: profile.id, name: profile.display_name, url: null } : null;
+            }
+            setMessages((current) =>
+              current.some((m) => m.id === row.id) ? current : [...current, { ...row, author, reactions: [] }],
+            );
             if (row.user_id !== me.id) setFresh((s) => new Set(s).add(row.id));
             setTyping((t) => {
               const next = { ...t };
@@ -215,6 +221,7 @@ export function TeaRoom({
     document.addEventListener("visibilitychange", onHide);
     return () => {
       save();
+      forgetArrival(`tea-seen:${teaId}`);
       document.removeEventListener("visibilitychange", onHide);
     };
   }, [teaId]);
@@ -225,14 +232,15 @@ export function TeaRoom({
     [initialMessages, lastSeen, me.id],
   );
 
-  useLayoutEffect(() => {
-    // Land on the first unread message if there is one, otherwise at the bottom.
+  useEffect(() => {
+    // Land on the first unread message if there is one, otherwise at the bottom —
+    // once, after hydration, when the stored position is known.
+    if (!hydrated || landed.current) return;
+    landed.current = true;
     const target = firstUnread ? document.getElementById(`unread-${teaId}`) : null;
     if (target) target.scrollIntoView({ block: "center" });
     else window.scrollTo({ top: document.body.scrollHeight });
-    // Only on arrival.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [hydrated, firstUnread, teaId]);
 
   const count = optimistic.length;
   useEffect(() => {
@@ -295,23 +303,25 @@ export function TeaRoom({
 
   /* ------------------------------------------------------------ render */
   const others = present.filter((p) => p.id !== me.id);
+  const faceOf = (id: string) => optimistic.find((m) => m.user_id === id)?.author?.url ?? null;
   const typers = Object.keys(typing)
     .map((id) => optimistic.find((m) => m.user_id === id)?.author?.name ?? present.find((p) => p.id === id)?.name)
     .filter((n): n is string => Boolean(n));
 
-  let spillAt: number | null = null;
+  // Which messages hang off a spill: replies within a few minutes after one. Worked
+  // out in one pass up front, so rendering stays a pure map.
+  const echoIds = new Set<string>();
+  {
+    let spillAt: number | null = null;
+    for (const message of optimistic) {
+      const at = new Date(message.created_at).getTime();
+      if (message.reactions.some((r) => r.reaction === SPILL)) spillAt = at;
+      else if (spillAt !== null && at - spillAt < SPILL_ECHO) echoIds.add(message.id);
+    }
+  }
 
   return (
     <div className="tea-room">
-      <div className="tea-presence" aria-live="polite">
-        <span className="tea-presence-dot" data-live={live} aria-hidden="true" />
-        {!live
-          ? "Reconnecting — new messages will appear when this clears."
-          : others.length === 0
-            ? "Just you in here right now."
-            : `${others.length + 1} still awake · ${others.slice(0, 3).map((p) => firstName(p.name)).join(", ")}${others.length > 3 ? "…" : ""} here`}
-      </div>
-
       <div className="tea-stream" ref={streamRef}>
         {optimistic.length === 0 && (
           <p className="tea-nothing">
@@ -328,9 +338,9 @@ export function TeaRoom({
           const isPending = message.id.startsWith("pending-");
           const spilled = message.reactions.find((r) => r.reaction === SPILL);
           const reactions = message.reactions.filter((r) => r.reaction !== SPILL);
-          const echoes = !spilled && spillAt !== null && at - spillAt < SPILL_ECHO;
-          if (spilled) spillAt = at;
-          const newDay = !previous || new Date(previous.created_at).toDateString() !== new Date(message.created_at).toDateString();
+          const echoes = echoIds.has(message.id);
+          const day = dayLabel(message.created_at, timeZone);
+          const newDay = !previous || dayLabel(previous.created_at, timeZone) !== day;
           const spillers = spilled
             ? spilled.userIds.map((id) => optimistic.find((m) => m.user_id === id)?.author?.name ?? (id === me.id ? me.name : "someone"))
             : [];
@@ -339,7 +349,7 @@ export function TeaRoom({
             <div key={message.id} className="tea-slot">
               {newDay && (
                 <p className="tea-day">
-                  {new Date(message.created_at).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" })}
+                  {day}
                 </p>
               )}
               {message.id === firstUnread && (
@@ -369,7 +379,7 @@ export function TeaRoom({
                     {!isMine && <Avatar url={message.author?.url ?? null} name={message.author?.name ?? "?"} size={28} />}
                     <span className="tea-author">{isMine ? "you" : (message.author?.name ?? "someone")}</span>
                     <time className="tea-time" dateTime={message.created_at}>
-                      {new Date(message.created_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+                      {clockTime(message.created_at, timeZone)}
                     </time>
                   </header>
                 )}
@@ -424,38 +434,58 @@ export function TeaRoom({
         )}
       </div>
 
-      {canPost ? (
-        <form
-          className="tea-composer"
-          onSubmit={(event) => {
-            event.preventDefault();
-            submit();
-          }}
-        >
-          <label className="sr-only" htmlFor={`compose-${teaId}`}>Message</label>
-          <textarea
-            id={`compose-${teaId}`}
-            ref={composerRef}
-            value={draft}
-            onChange={(event) => onType(event.target.value)}
-            onKeyDown={(event) => {
-              // Enter sends, Shift+Enter breaks the line — the convention thumbs already know.
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                submit();
-              }
+      {/* The dock: who's here, and the composer. Pinned to the bottom together, the
+          way every chat keeps "online" next to the place you type. */}
+      <div className="tea-dock">
+        <div className="tea-presence" aria-live="polite">
+          {others.length > 0 ? (
+            <AvatarStack
+              people={others.slice(0, 4).map((p) => ({ id: p.id, name: p.name, url: faceOf(p.id) }))}
+              max={4}
+              size={22}
+            />
+          ) : (
+            <span className="tea-presence-dot" data-live={live} aria-hidden="true" />
+          )}
+          {!live
+            ? "Reconnecting. New messages will appear when this clears."
+            : others.length === 0
+              ? "Just you in here right now."
+              : `${others.length + 1} still awake: you, ${others.slice(0, 3).map((p) => firstName(p.name)).join(", ")}${others.length > 3 ? " and more" : ""}`}
+        </div>
+        {canPost ? (
+          <form
+            className="tea-composer"
+            onSubmit={(event) => {
+              event.preventDefault();
+              submit();
             }}
-            placeholder="spill it…"
-            rows={1}
-            maxLength={2000}
-          />
-          <button className="tea-send" type="submit" disabled={!draft.trim()} aria-label="Send">
-            <Send />
-          </button>
-        </form>
-      ) : (
-        <p className="tea-closed">This tea is closed. Reopen it to keep going.</p>
-      )}
+          >
+            <label className="sr-only" htmlFor={`compose-${teaId}`}>Message</label>
+            <textarea
+              id={`compose-${teaId}`}
+              ref={composerRef}
+              value={draft}
+              onChange={(event) => onType(event.target.value)}
+              onKeyDown={(event) => {
+                // Enter sends, Shift+Enter breaks the line — the convention thumbs already know.
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  submit();
+                }
+              }}
+              placeholder="spill it…"
+              rows={1}
+              maxLength={2000}
+            />
+            <button className="tea-send" type="submit" disabled={!draft.trim()} aria-label="Send">
+              <Send />
+            </button>
+          </form>
+        ) : (
+          <p className="tea-closed">This tea is closed. Reopen it to keep going.</p>
+        )}
+      </div>
     </div>
   );
 }

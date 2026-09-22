@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { requireGroup, getGroupMembers } from "@/lib/data/session";
+import { requireGroup, getGroupMembers, roomContext } from "@/lib/data/session";
 import { getIdea } from "@/lib/data/one-day";
 import { resolveAvatars } from "@/lib/data/media";
 import { Avatar } from "@/components/app/Avatar";
@@ -22,13 +22,14 @@ export const dynamic = "force-dynamic";
  */
 export default async function IdeaDetail({ params }: PageProps<"/g/[slug]/one-day/[ideaId]">) {
   const { slug, ideaId } = await params;
-  const { group, profile } = await requireGroup(slug);
-  const [{ idea, memberCount, planId, avatars }, members] = await Promise.all([
-    getIdea(ideaId, profile.id),
-    getGroupMembers(group.id),
+  const { groupId, viewerId } = await roomContext(slug);
+  const [{ profile }, { idea, memberCount, planId, avatars }, members] = await Promise.all([
+    requireGroup(slug),
+    getIdea(ideaId, viewerId, groupId),
+    getGroupMembers(groupId),
   ]);
 
-  if (!idea || idea.group_id !== group.id) notFound();
+  if (!idea) notFound();
 
   const memberAvatars = await resolveAvatars(members.map((m) => m.profile));
   const av = new Map([...memberAvatars, ...avatars]);
@@ -68,7 +69,7 @@ export default async function IdeaDetail({ params }: PageProps<"/g/[slug]/one-da
           {promoted ? (
             <div className="idea-left">
               <p className="display idea-left-line">This one left the wall.</p>
-              <p className="lede">It&apos;s a real plan now — dates, places, the headcount.</p>
+              <p className="lede">It&apos;s a real plan now: dates, places, the headcount.</p>
               {planId && (
                 <Link className="btn btn-lit" href={`/g/${slug}/align/${planId}`}>
                   Open it in ALIGN

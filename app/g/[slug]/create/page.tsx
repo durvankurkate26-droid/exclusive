@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { requireGroup } from "@/lib/data/session";
+import { requireGroup, roomContext } from "@/lib/data/session";
 import { listCreations, type CreationSummary } from "@/lib/data/create";
 import { AvatarStack } from "@/components/app/Avatar";
 import { firstName, toPeople } from "@/components/app/People";
@@ -23,8 +23,11 @@ export const dynamic = "force-dynamic";
 export default async function CreatePage({ params, searchParams }: PageProps<"/g/[slug]/create">) {
   const { slug } = await params;
   const { new: wantsNew } = await searchParams;
-  const { group, profile } = await requireGroup(slug);
-  const { live, shipped, avatars } = await listCreations(group.id, profile.id);
+  const { groupId, viewerId } = await roomContext(slug);
+  const [{ group }, { live, shipped, avatars }] = await Promise.all([
+    requireGroup(slug),
+    listCreations(groupId, viewerId),
+  ]);
   const base = `/g/${slug}/create`;
 
   const crewLine = (c: CreationSummary) => {
@@ -64,7 +67,7 @@ export default async function CreatePage({ params, searchParams }: PageProps<"/g
                 data-size={i === 0 ? "lead" : i % 3 === 2 ? "tall" : "base"}
                 style={{ ["--t" as string]: `${i === 0 ? 0 : tilt(c.id, 1.4)}deg` }}
               >
-                <Reference id={c.id} url={c.reference_url} title={c.title} size={i === 0 ? "large" : "base"} />
+                <Reference id={c.id} url={c.reference_url} title={c.title} size={i === 0 ? "large" : "base"} titled={false} />
                 <span className="make-text">
                   <span className="make-status">{CREATE_STATUS_LABEL[c.status]}</span>
                   <span className="display make-title">{c.title}</span>

@@ -5,6 +5,8 @@ import { removeMember, rotateInviteCode, setMemberRole } from "@/lib/actions/gro
 import type { Role } from "@/lib/supabase/database.types";
 import { Copy, Share } from "@/components/app/Icons";
 import { toast } from "@/components/app/Toast";
+import { useHydrated } from "@/lib/client-store";
+import { Photo } from "@/components/app/Photo";
 
 /**
  * Bring your people in.
@@ -19,24 +21,24 @@ export function InvitePanel({
   code,
   memberCount,
   canRotate,
+  photos = [],
 }: {
   groupId: string;
   groupName: string;
   code: string;
   memberCount: number;
   canRotate: boolean;
+  /** A few of the group's own photographs, so the invite looks like the place. */
+  photos?: string[];
 }) {
   const [copied, setCopied] = useState<"code" | "link" | null>(null);
   const [pending, startTransition] = useTransition();
-  const [link, setLink] = useState("");
-  const [canShare, setCanShare] = useState(false);
-
   // The origin is only knowable in the browser; baking one deployment's host into the
-  // link server-side would break every other deployment's invites.
-  useEffect(() => {
-    setLink(`${window.location.origin}/join/${code}`);
-    setCanShare(typeof navigator.share === "function");
-  }, [code]);
+  // link server-side would break every other deployment's invites. Empty until
+  // hydrated, so the server and the first client render agree.
+  const hydrated = useHydrated();
+  const link = hydrated ? `${window.location.origin}/join/${code}` : "";
+  const canShare = hydrated && typeof navigator.share === "function";
 
   useEffect(() => {
     if (!copied) return;
@@ -49,7 +51,7 @@ export function InvitePanel({
       await navigator.clipboard.writeText(value);
       setCopied(which);
     } catch {
-      toast("Couldn't copy — select it and copy by hand.", "error");
+      toast("Couldn't copy. Select it and copy by hand.", "error");
     }
   };
 
@@ -63,6 +65,15 @@ export function InvitePanel({
 
   return (
     <section className="invite" aria-labelledby="invite-h">
+      {photos.length > 0 && (
+        <span className="invite-prints" aria-hidden="true">
+          {photos.map((src, i) => (
+            <span key={src} className="invite-print" style={{ ["--j" as string]: i }}>
+              <Photo src={src} sizes="(max-width: 760px) 160px, 320px" />
+            </span>
+          ))}
+        </span>
+      )}
       <h2 className="display invite-title" id="invite-h">Bring your people in.</h2>
       <p className="lede">
         {memberCount} {memberCount === 1 ? "person is" : "people are"} in {groupName}. Anyone with this code can walk in.
@@ -73,6 +84,12 @@ export function InvitePanel({
         ))}
         <em>{copied === "code" ? "copied" : "tap to copy"}</em>
       </button>
+      {link && (
+        <p className="invite-link">
+          <span className="sr-only">Invite link: </span>
+          {link.replace(/^https?:\/\//, "")}
+        </p>
+      )}
       <div className="form-row">
         {canShare && (
           <button className="btn btn-lit" type="button" disabled={!link} onClick={share}>

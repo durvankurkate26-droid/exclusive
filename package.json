@@ -6,16 +6,16 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "db:push": "node scripts/db-push.mjs",
-    "db:seed": "node --experimental-strip-types scripts/seed-demo.ts"
+    "db:seed": "node --experimental-strip-types scripts/seed-demo.ts",
+    "db:seed-photos": "node --experimental-strip-types scripts/seed-photos.ts"
   },
   "dependencies": {
     "@fontsource/bebas-neue": "^5.2.9",
     "@fontsource/space-grotesk": "^5.2.9",
     "@fontsource/space-mono": "^5.2.9",
-    "@gsap/react": "^2.1.2",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.116.0",
     "clsx": "^2.1.1",
@@ -34,6 +34,8 @@
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "dotenv": "^18.0.1",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.3.5",
     "pg": "^8.23.0",
     "tailwindcss": "^4.1.14",
     "typescript": "^5.9.3"

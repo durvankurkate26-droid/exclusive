@@ -2,6 +2,7 @@ import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
 import { resolveAvatars } from "@/lib/data/media";
+import { getGroupMembers } from "@/lib/data/session";
 import type {
   Attendance,
   OptionType,
@@ -50,6 +51,9 @@ export type PlanSummary = Plan & {
   outCount: number;
   unresolved: string[];
   people: Profile[];
+  /** Where it started and what it became, for the lineage line on the list. */
+  from: { room: "one-day" | "create"; id: string; title: string } | null;
+  memoryId: string | null;
 };
 
 export type PlanDetail = PlanSummary & {
@@ -94,6 +98,12 @@ function summarise(
   return { unresolved, inCount, maybeCount, outCount };
 }
 
+type RosterRow = { attendance_status: string; user_id?: string; profiles: Profile | null };
+
+/**
+ * Every plan in the group with its roster embedded — one request, where it used to be
+ * the plan list, then the member count, then the roster, one after another.
+ */
 export async function listPlans(groupId: string): Promise<{
   open: PlanSummary[];
   locked: PlanSummary[];
@@ -103,60 +113,58 @@ export async function listPlans(groupId: string): Promise<{
 }> {
   const supabase = await createClient();
 
-  const [{ data: rows }, { data: memberRows }] = await Promise.all([
+  const [{ data: rows }, members] = await Promise.all([
     supabase
       .from("plans")
-      .select("*, profiles:created_by(*)")
+      .select(
+        "*, profiles:created_by(*), plan_members(attendance_status, profiles:user_id(*)), one_day_ideas(id, title), create_ideas(id, title), memory_capsules(id)",
+      )
       .eq("group_id", groupId)
       .order("created_at", { ascending: false }),
-    supabase.from("group_members").select("user_id").eq("group_id", groupId),
+    getGroupMembers(groupId),
   ]);
 
-  const plans = rows ?? [];
-  const memberCount = memberRows?.length ?? 0;
+  const memberCount = members.length;
+  const plans = (rows ?? []) as unknown as Array<
+    Plan & {
+      profiles: Profile | null;
+      plan_members: RosterRow[];
+      one_day_ideas: { id: string; title: string } | null;
+      create_ideas: { id: string; title: string } | null;
+      memory_capsules: Array<{ id: string }>;
+    }
+  >;
 
   if (plans.length === 0) {
     return { open: [], locked: [], done: [], memberCount, avatars: new Map() };
   }
 
-  const { data: memberships } = await supabase
-    .from("plan_members")
-    .select("plan_id, attendance_status, profiles:user_id(*)")
-    .in(
-      "plan_id",
-      plans.map((plan) => plan.id),
-    );
-
-  const byPlan = new Map<string, Array<{ status: Attendance; profile: Profile | null }>>();
   const everyone: Profile[] = [];
-  for (const row of memberships ?? []) {
-    const profile = (row as unknown as { profiles: Profile | null }).profiles;
-    byPlan.set(row.plan_id, [
-      ...(byPlan.get(row.plan_id) ?? []),
-      { status: row.attendance_status as Attendance, profile },
-    ]);
-    if (profile) everyone.push(profile);
-  }
-
-  const summaries: PlanSummary[] = plans.map((row) => {
-    const plan = row as unknown as Plan;
-    const roster = byPlan.get(plan.id) ?? [];
-    const counts = summarise(plan, roster, memberCount);
+  const summaries: PlanSummary[] = plans.map(({ profiles: author, plan_members, one_day_ideas: idea, create_ideas: make, memory_capsules: saved, ...plan }) => {
+    const roster = (plan_members ?? []).map((row) => ({
+      status: row.attendance_status as Attendance,
+      profile: row.profiles,
+    }));
+    for (const entry of roster) if (entry.profile) everyone.push(entry.profile);
+    if (author) everyone.push(author);
     return {
-      ...plan,
-      author: (row as unknown as { profiles: Profile | null }).profiles ?? null,
-      ...counts,
+      ...(plan as Plan),
+      author: author ?? null,
+      ...summarise(plan as Plan, roster, memberCount),
       people: roster
         .filter((entry) => entry.status === "in")
         .map((entry) => entry.profile)
         .filter((p): p is Profile => Boolean(p)),
+      from: idea
+        ? { room: "one-day" as const, id: idea.id, title: idea.title }
+        : make
+          ? { room: "create" as const, id: make.id, title: make.title }
+          : null,
+      memoryId: saved?.[0]?.id ?? null,
     };
   });
 
-  const avatars = await resolveAvatars([
-    ...everyone,
-    ...summaries.map((p) => p.author).filter((a): a is Profile => Boolean(a)),
-  ]);
+  const avatars = await resolveAvatars(everyone);
 
   return {
     // Fewest blockers first: the plan closest to happening is the one that needs a
@@ -173,71 +181,72 @@ export async function listPlans(groupId: string): Promise<{
   };
 }
 
+type PlanRow = Plan & {
+  profiles: Profile | null;
+  plan_options: Array<PlanOption & { plan_votes: Array<{ profiles: Profile | null }> }>;
+  plan_members: RosterRow[];
+  one_day_ideas: { id: string; title: string } | null;
+  create_ideas: { id: string; title: string } | null;
+  memory_capsules: Array<{ id: string; created_at: string }>;
+};
+
+/**
+ * One plan, with everything the room shows embedded in the same request: options with
+ * their voters, the roster, where it came from, and the memory it became. That was six
+ * requests in a row; now it is one, plus the (cached) member list beside it.
+ */
 export async function getPlan(
   planId: string,
   viewerId: string,
+  groupId: string,
 ): Promise<{ plan: PlanDetail | null; avatars: Map<string, string | null> }> {
   const supabase = await createClient();
 
-  const { data: row } = await supabase
-    .from("plans")
-    .select("*, profiles:created_by(*)")
-    .eq("id", planId)
-    .maybeSingle();
+  const [{ data: row }, members] = await Promise.all([
+    supabase
+      .from("plans")
+      .select(
+        `*, profiles:created_by(*),
+         plan_options(*, plan_votes(profiles:user_id(*))),
+         plan_members(attendance_status, user_id, profiles:user_id(*)),
+         one_day_ideas(id, title),
+         create_ideas(id, title),
+         memory_capsules(id, created_at)`,
+      )
+      .eq("id", planId)
+      .eq("group_id", groupId)
+      .order("created_at", { referencedTable: "plan_options" })
+      .maybeSingle(),
+    getGroupMembers(groupId),
+  ]);
 
   if (!row) return { plan: null, avatars: new Map() };
 
-  const plan = row as unknown as Plan;
-  const author = (row as unknown as { profiles: Profile | null }).profiles ?? null;
+  const {
+    profiles: author,
+    plan_options,
+    plan_members,
+    one_day_ideas: sourceIdea,
+    create_ideas: sourceCreate,
+    memory_capsules: capsules,
+    ...rest
+  } = row as unknown as PlanRow;
+  const plan = rest as Plan;
 
-  const [{ data: optionRows }, { data: memberRows }, { data: groupRows }] =
-    await Promise.all([
-      supabase.from("plan_options").select("*").eq("plan_id", planId).order("created_at"),
-      supabase
-        .from("plan_members")
-        .select("attendance_status, user_id, profiles:user_id(*)")
-        .eq("plan_id", planId),
-      supabase.from("group_members").select("user_id").eq("group_id", plan.group_id),
-    ]);
-
-  const options = (optionRows ?? []) as unknown as PlanOption[];
-
-  // One votes query for every option on the plan rather than one per option.
-  const { data: voteRows } = options.length
-    ? await supabase
-        .from("plan_votes")
-        .select("option_id, user_id, profiles:user_id(*)")
-        .in(
-          "option_id",
-          options.map((option) => option.id),
-        )
-    : { data: [] };
-
-  const votesByOption = new Map<string, Profile[]>();
   const voters: Profile[] = [];
-  for (const vote of voteRows ?? []) {
-    const profile = (vote as unknown as { profiles: Profile | null }).profiles;
-    if (!profile) continue;
-    votesByOption.set(vote.option_id, [
-      ...(votesByOption.get(vote.option_id) ?? []),
-      profile,
-    ]);
-    voters.push(profile);
-  }
-
-  const withVotes: OptionWithVotes[] = options.map((option) => {
-    const people = votesByOption.get(option.id) ?? [];
-    return { ...option, voters: people, mine: people.some((p) => p.id === viewerId) };
+  const withVotes: OptionWithVotes[] = (plan_options ?? []).map(({ plan_votes, ...option }) => {
+    const people = (plan_votes ?? []).map((v) => v.profiles).filter((p): p is Profile => Boolean(p));
+    voters.push(...people);
+    return { ...(option as PlanOption), voters: people, mine: people.some((p) => p.id === viewerId) };
   });
 
-  const attendance = (memberRows ?? [])
-    .map((entry) => {
-      const profile = (entry as unknown as { profiles: Profile | null }).profiles;
-      return profile ? { profile, status: entry.attendance_status as Attendance } : null;
-    })
+  const attendance = (plan_members ?? [])
+    .map((entry) =>
+      entry.profiles ? { profile: entry.profiles, status: entry.attendance_status as Attendance } : null,
+    )
     .filter((entry): entry is { profile: Profile; status: Attendance } => entry !== null);
 
-  const memberCount = groupRows?.length ?? 0;
+  const memberCount = members.length;
   const counts = summarise(plan, attendance, memberCount);
 
   const buildBlocker = (key: OptionType, answer: string | null): Blocker => {
@@ -271,30 +280,12 @@ export async function getPlan(
   ];
 
   // Where this plan came from, so the room can point back at the idea or the shoot.
-  let origin: PlanDetail["origin"] = null;
-  if (plan.source_idea_id) {
-    const { data: source } = await supabase
-      .from("one_day_ideas")
-      .select("id, title")
-      .eq("id", plan.source_idea_id)
-      .maybeSingle();
-    if (source) origin = { room: "one-day", id: source.id, title: source.title };
-  } else if (plan.source_create_id) {
-    const { data: source } = await supabase
-      .from("create_ideas")
-      .select("id, title")
-      .eq("id", plan.source_create_id)
-      .maybeSingle();
-    if (source) origin = { room: "create", id: source.id, title: source.title };
-  }
-
-  const { data: capsule } = await supabase
-    .from("memory_capsules")
-    .select("id")
-    .eq("source_plan_id", plan.id)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const origin: PlanDetail["origin"] = sourceIdea
+    ? { room: "one-day", id: sourceIdea.id, title: sourceIdea.title }
+    : sourceCreate
+      ? { room: "create", id: sourceCreate.id, title: sourceCreate.title }
+      : null;
+  const capsule = [...(capsules ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
 
   const avatars = await resolveAvatars([
     ...voters,
@@ -305,7 +296,7 @@ export async function getPlan(
   return {
     plan: {
       ...plan,
-      author,
+      author: author ?? null,
       ...counts,
       people: attendance.filter((a) => a.status === "in").map((a) => a.profile),
       blockers,
@@ -315,6 +306,8 @@ export async function getPlan(
       memberCount,
       origin,
       capsuleId: capsule?.id ?? null,
+      from: origin,
+      memoryId: capsule?.id ?? null,
     },
     avatars,
   };

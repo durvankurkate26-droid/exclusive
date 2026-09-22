@@ -2,7 +2,8 @@ import "server-only";
 
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
-import type { Profile } from "@/lib/supabase/database.types";
+import { getGroupMembers } from "@/lib/data/session";
+import { weekday } from "@/lib/format";
 import type { RoomKey } from "@/lib/constants/rooms";
 
 /**
@@ -39,7 +40,7 @@ export const getActivity = cache(
     const since = new Date(Date.now() - WINDOW_DAYS * 86400000).toISOString();
     const base = `/g/${slug}`;
 
-    const [teas, ideas, interest, votes, plans, creates, crew, capsules, media, joins] =
+    const [teas, ideas, interest, votes, plans, creates, crew, capsules, media, joins, members] =
       await Promise.all([
         supabase
           .from("teas")
@@ -113,6 +114,9 @@ export const getActivity = cache(
           .gte("created_at", since)
           .order("created_at", { ascending: false })
           .limit(PER_SOURCE),
+        // Names come from the member list (request-cached, usually already loaded by
+        // the page) rather than a second profiles query after the sort.
+        getGroupMembers(groupId),
       ]);
 
     const items: Array<ActivityItem & { userId: string | null }> = [];
@@ -121,7 +125,7 @@ export const getActivity = cache(
     for (const t of (teas.data ?? []) as Row[]) {
       push({
         id: `tea-${t.id}`, at: String(t.created_at), userId: String(t.created_by), who: null,
-        room: "tea", text: `started a tea — “${t.title}”`, href: `${base}/tea/${t.id}`,
+        room: "tea", text: `started a tea: “${t.title}”`, href: `${base}/tea/${t.id}`,
       });
     }
 
@@ -147,7 +151,7 @@ export const getActivity = cache(
       const plan = option.plans as Row;
       const value =
         option.option_type === "date" && /^\d{4}-\d{2}-\d{2}/.test(String(option.value))
-          ? new Date(String(option.value)).toLocaleDateString(undefined, { weekday: "long" })
+          ? weekday(String(option.value).slice(0, 10)).toLowerCase().replace(/^./, (c) => c.toUpperCase())
           : String(option.value);
       push({
         id: `vote-${v.id}`, at: String(v.created_at), userId: String(v.user_id), who: null,
@@ -188,7 +192,7 @@ export const getActivity = cache(
     for (const c of (capsules.data ?? []) as Row[]) {
       push({
         id: `capsule-${c.id}`, at: String(c.created_at), userId: String(c.created_by), who: null,
-        room: "vault", text: `opened a memory — ${c.title}`, href: `${base}/vault/${c.id}`,
+        room: "vault", text: `opened a memory, ${c.title}`, href: `${base}/vault/${c.id}`,
       });
     }
 
@@ -219,14 +223,7 @@ export const getActivity = cache(
     items.sort((a, b) => b.at.localeCompare(a.at));
     const top = items.slice(0, limit);
 
-    const ids = [...new Set(top.map((i) => i.userId).filter((id): id is string => Boolean(id)))];
-    const names = new Map<string, string>();
-    if (ids.length) {
-      const { data } = await supabase.from("profiles").select("id, display_name").in("id", ids);
-      for (const p of (data ?? []) as Array<Pick<Profile, "id" | "display_name">>) {
-        names.set(p.id, p.display_name.split(" ")[0]);
-      }
-    }
+    const names = new Map(members.map((m) => [m.profile.id, m.profile.display_name.split(" ")[0]]));
 
     return top.map(({ userId, ...item }) => ({
       ...item,

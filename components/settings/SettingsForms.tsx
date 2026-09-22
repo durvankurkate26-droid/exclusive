@@ -207,7 +207,7 @@ export function DangerZone({
       {isOwner ? (
         <>
           <p className="danger-line">
-            You own {groupName}. Owners can&apos;t leave — deleting is the only exit, and
+            You own {groupName}. Owners can&apos;t leave. Deleting is the only exit, and
             it takes every message, plan and photograph with it.
           </p>
           <div className="form-row">

@@ -68,12 +68,12 @@ export default async function proxy(request: NextRequest) {
     },
   });
 
-  // Must be getUser(), not getSession(): getSession() trusts the cookie without
-  // contacting the auth server, so it cannot detect a revoked or expired token — and
-  // calling it here is also what triggers the refresh-and-write above.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getClaims(), not getSession(): it verifies the access token's signature (against
+  // the project's cached ES256 public key — no auth-server round trip on every request,
+  // prefetches included), and it is also what triggers the refresh-and-write above
+  // when the token has expired. getSession() would trust an unverified cookie.
+  const { data } = await supabase.auth.getClaims();
+  const user = data?.claims?.sub ? data.claims : null;
 
   const { pathname, search } = request.nextUrl;
 

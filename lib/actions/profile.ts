@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { friendly } from "@/lib/errors";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getUser } from "@/lib/data/session";
@@ -32,7 +33,7 @@ export async function completeOnboarding(
     return { error: "A name between 2 and 40 characters." };
   }
   if (!USERNAME_RE.test(username)) {
-    return { error: "Username: 3–20 characters, lowercase letters, numbers or _." };
+    return { error: "Username: 3-20 characters, lowercase letters, numbers or _." };
   }
 
   const supabase = await createClient();
@@ -49,7 +50,7 @@ export async function completeOnboarding(
     // 23505 is a unique violation, and the only unique constraint reachable here is
     // the case-insensitive username index.
     if (error.code === "23505") return { error: "That username is taken. Try another." };
-    return { error: error.message };
+    return { error: friendly(error, "profile") };
   }
 
   revalidatePath("/", "layout");
@@ -74,7 +75,7 @@ export async function updateProfile(
     .update({ display_name: displayName, bio: bio || null })
     .eq("id", user.id);
 
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error, "profile") };
 
   revalidatePath("/", "layout");
   return { message: "Saved." };
@@ -111,7 +112,7 @@ export async function uploadAvatar(formData: FormData): Promise<FormState> {
     .update({ avatar_url: path })
     .eq("id", user.id);
 
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error, "profile") };
 
   revalidatePath("/", "layout");
   return { message: "Looking good." };

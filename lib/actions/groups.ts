@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { friendly } from "@/lib/errors";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getUser } from "@/lib/data/session";
@@ -27,7 +28,7 @@ export async function createGroup(
   const description = String(formData.get("description") ?? "").trim();
 
   if (name.length < 1 || name.length > 60) {
-    return { error: "Give it a name — up to 60 characters." };
+    return { error: "Give it a name, up to 60 characters." };
   }
 
   const supabase = await createClient();
@@ -36,7 +37,7 @@ export async function createGroup(
     group_description: description || null,
   });
 
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error, "groups") };
 
   const created = Array.isArray(data) ? data[0] : data;
   if (!created?.slug) return { error: "Could not create the group. Try again." };
@@ -72,7 +73,7 @@ export async function joinGroup(
     if (error.code === "P0002" || /invalid invite/i.test(error.message)) {
       return { error: "No group with that code. Check it and try again." };
     }
-    return { error: error.message };
+    return { error: friendly(error, "groups") };
   }
 
   const joined = Array.isArray(data) ? data[0] : data;
@@ -85,7 +86,7 @@ export async function joinGroup(
 export async function rotateInviteCode(groupId: string): Promise<FormState> {
   const supabase = await createClient();
   const { error } = await supabase.rpc("rotate_invite_code", { gid: groupId });
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error, "groups") };
   revalidatePath("/", "layout");
   return { message: "New code. The old one is dead." };
 }
@@ -108,7 +109,7 @@ export async function updateGroup(
     .update({ name, description: description || null })
     .eq("id", groupId);
 
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error, "groups") };
 
   revalidatePath("/", "layout");
   return { message: "Saved." };
@@ -133,11 +134,11 @@ export async function leaveGroup(groupId: string): Promise<FormState> {
     .eq("user_id", user.id)
     .select("id");
 
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error, "groups") };
   if (!data || data.length === 0) {
     return {
       error:
-        "You own this group. Owners can't leave — delete it instead, or stay.",
+        "You own this group. Owners can't leave. Delete it instead, or stay.",
     };
   }
 
@@ -166,7 +167,7 @@ export async function setMemberRole(
     .neq("role", "owner")
     .select("id");
 
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error, "groups") };
   if (!data || data.length === 0) return { error: "You can't change that person's role." };
 
   revalidatePath("/", "layout");
@@ -185,7 +186,7 @@ export async function removeMember(groupId: string, userId: string): Promise<For
     .eq("user_id", userId)
     .select("id");
 
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error, "groups") };
   if (!data || data.length === 0) {
     return { error: "You can't remove them. An owner can only delete the group, not be removed from it." };
   }
@@ -203,7 +204,7 @@ export async function deleteGroup(groupId: string): Promise<FormState> {
     .eq("id", groupId)
     .select("id");
 
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error, "groups") };
   if (!data || data.length === 0) return { error: "Only the owner can delete this group." };
 
   revalidatePath("/", "layout");

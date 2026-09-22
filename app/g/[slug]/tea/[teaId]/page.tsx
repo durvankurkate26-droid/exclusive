@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { requireGroup } from "@/lib/data/session";
+import { requireGroup, roomContext } from "@/lib/data/session";
 import { getTea } from "@/lib/data/tea";
+import { getTimeZone } from "@/lib/data/timezone";
 import { resolveAvatars } from "@/lib/data/media";
 import { ArrowLeft } from "@/components/app/Icons";
 import { TeaRoom, type ClientMessage } from "@/components/tea/TeaRoom";
@@ -19,10 +20,14 @@ export const dynamic = "force-dynamic";
  */
 export default async function TeaThread({ params }: PageProps<"/g/[slug]/tea/[teaId]">) {
   const { slug, teaId } = await params;
-  const { group, profile } = await requireGroup(slug);
-  const { tea, messages, avatars } = await getTea(teaId);
+  const { groupId } = await roomContext(slug);
+  const [{ profile }, { tea, messages, avatars }, timeZone] = await Promise.all([
+    requireGroup(slug),
+    getTea(teaId),
+    getTimeZone(),
+  ]);
 
-  if (!tea || tea.group_id !== group.id) notFound();
+  if (!tea || tea.group_id !== groupId) notFound();
 
   const mine = await resolveAvatars([profile]);
 
@@ -61,6 +66,7 @@ export default async function TeaThread({ params }: PageProps<"/g/[slug]/tea/[te
         initialMessages={clientMessages}
         me={{ id: profile.id, name: profile.display_name, url: mine.get(profile.id) ?? null }}
         canPost={tea.status === "brewing"}
+        timeZone={timeZone}
       />
     </div>
   );

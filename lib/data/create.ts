@@ -33,41 +33,33 @@ export type CreationSummary = CreateIdea & {
 export type CreationDetail = CreationSummary & {
   /** The shoot this became, if somebody already scheduled it. */
   planId: string | null;
+  /** The memory it was saved as, once it's out. */
+  capsuleId: string | null;
 };
 
-async function attachCrew(
-  creations: CreateIdea[],
-  viewerId: string,
-): Promise<{ crews: Map<string, CrewMember[]>; profiles: Profile[] }> {
-  const crews = new Map<string, CrewMember[]>();
-  const profiles: Profile[] = [];
-  if (creations.length === 0) return { crews, profiles };
+type CreationRow = CreateIdea & {
+  profiles: Profile | null;
+  create_members: Array<{ role: string | null; participation_status: string; profiles: Profile | null }>;
+};
 
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("create_members")
-    .select("create_id, role, participation_status, profiles:user_id(*)")
-    .in(
-      "create_id",
-      creations.map((creation) => creation.id),
-    );
+const CREATION_SELECT = "*, profiles:created_by(*), create_members(role, participation_status, profiles:user_id(*))";
 
-  for (const row of data ?? []) {
-    const profile = (row as unknown as { profiles: Profile | null }).profiles;
-    if (!profile) continue;
-    crews.set(row.create_id, [
-      ...(crews.get(row.create_id) ?? []),
-      {
-        profile,
-        role: (row.role as CreateRole | null) ?? null,
-        status: row.participation_status as Attendance,
-      },
-    ]);
-    profiles.push(profile);
-  }
-
-  void viewerId;
-  return { crews, profiles };
+/** The crew is embedded in the creation's own query; this unpacks it. */
+function unpack(row: CreationRow, viewerId: string): CreationSummary {
+  const { profiles: author, create_members, ...creation } = row;
+  const crew: CrewMember[] = (create_members ?? [])
+    .filter((m) => m.profiles)
+    .map((m) => ({
+      profile: m.profiles!,
+      role: (m.role as CreateRole | null) ?? null,
+      status: m.participation_status as Attendance,
+    }));
+  return {
+    ...(creation as CreateIdea),
+    author: author ?? null,
+    crew,
+    mine: crew.find((member) => member.profile.id === viewerId) ?? null,
+  };
 }
 
 export async function listCreations(
@@ -82,26 +74,14 @@ export async function listCreations(
 
   const { data: rows } = await supabase
     .from("create_ideas")
-    .select("*, profiles:created_by(*)")
+    .select(CREATION_SELECT)
     .eq("group_id", groupId)
     .order("updated_at", { ascending: false });
 
-  const base = (rows ?? []).map((row) => row as unknown as CreateIdea);
-  const { crews, profiles } = await attachCrew(base, viewerId);
-
-  const summaries: CreationSummary[] = (rows ?? []).map((row) => {
-    const creation = row as unknown as CreateIdea;
-    const crew = crews.get(creation.id) ?? [];
-    return {
-      ...creation,
-      author: (row as unknown as { profiles: Profile | null }).profiles ?? null,
-      crew,
-      mine: crew.find((member) => member.profile.id === viewerId) ?? null,
-    };
-  });
+  const summaries = ((rows ?? []) as unknown as CreationRow[]).map((row) => unpack(row, viewerId));
 
   const avatars = await resolveAvatars([
-    ...profiles,
+    ...summaries.flatMap((s) => s.crew.map((m) => m.profile)),
     ...summaries.map((s) => s.author).filter((a): a is Profile => Boolean(a)),
   ]);
 
@@ -119,41 +99,36 @@ export async function listCreations(
 export async function getCreation(
   createId: string,
   viewerId: string,
+  groupId: string,
 ): Promise<{ creation: CreationDetail | null; avatars: Map<string, string | null> }> {
   const supabase = await createClient();
 
   const { data: row } = await supabase
     .from("create_ideas")
-    .select("*, profiles:created_by(*)")
+    .select(`${CREATION_SELECT}, plans(id, created_at), memory_capsules(id, created_at)`)
     .eq("id", createId)
+    .eq("group_id", groupId)
     .maybeSingle();
 
   if (!row) return { creation: null, avatars: new Map() };
 
-  const creation = row as unknown as CreateIdea;
-  const author = (row as unknown as { profiles: Profile | null }).profiles ?? null;
-
-  const [{ crews, profiles }, { data: plan }] = await Promise.all([
-    attachCrew([creation], viewerId),
-    supabase
-      .from("plans")
-      .select("id")
-      .eq("source_create_id", creation.id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-  ]);
-
-  const crew = crews.get(creation.id) ?? [];
+  const { plans, memory_capsules, ...rest } = row as unknown as CreationRow & {
+    plans: Array<{ id: string; created_at: string }>;
+    memory_capsules: Array<{ id: string; created_at: string }>;
+  };
+  const creation = unpack(rest as CreationRow, viewerId);
+  const newest = <T extends { created_at: string }>(list: T[] | null | undefined) =>
+    [...(list ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
 
   return {
     creation: {
       ...creation,
-      author,
-      crew,
-      mine: crew.find((member) => member.profile.id === viewerId) ?? null,
-      planId: plan?.id ?? null,
+      planId: newest(plans)?.id ?? null,
+      capsuleId: newest(memory_capsules)?.id ?? null,
     },
-    avatars: await resolveAvatars([...profiles, ...(author ? [author] : [])]),
+    avatars: await resolveAvatars([
+      ...creation.crew.map((m) => m.profile),
+      ...(creation.author ? [creation.author] : []),
+    ]),
   };
 }

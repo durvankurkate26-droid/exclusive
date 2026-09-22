@@ -32,7 +32,6 @@ export function Avatar({
       style={{
         width: size,
         height: size,
-        // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
         ["--avatar-hue" as string]: String(hash),
       }}
       aria-hidden="true"

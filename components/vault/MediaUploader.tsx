@@ -111,7 +111,16 @@ export function MediaUploader({
             ? "Not an image we can take."
             : undefined,
     }));
-    setItems(queued.map(({ file: _file, ...item }) => ({ ...item, state: item.error ? "failed" : "queued" })));
+    setItems(
+      queued.map((entry) => ({
+        key: entry.key,
+        name: entry.name,
+        preview: entry.preview,
+        progress: entry.progress,
+        error: entry.error,
+        state: entry.error ? "failed" : "queued",
+      })),
+    );
     setBusy(true);
 
     const {

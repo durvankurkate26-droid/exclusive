@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useCallback, useEffect, useId, useState, type ReactNode } from "react";
 import { Close } from "./Icons";
 
 /**
@@ -15,7 +9,11 @@ import { Close } from "./Icons";
  * Built on native <dialog> + showModal(): focus is trapped and restored, Escape
  * closes it, and it renders in the top layer — so no transformed ancestor (the room
  * entrance, a rotated poster) can ever clip or re-parent it. On desktop it grows out
- * of the button that opened it; on phones it rises as a bottom sheet.
+ * of the button that opened it; on phones it rises as a bottom sheet. The page behind
+ * stops scrolling while it is open (`:has(dialog[open])` in shell.css).
+ *
+ * Because it contains a heading, a Sheet must never be rendered inside a <p> (or any
+ * phrasing-only parent): the browser would split the paragraph and hydration fails.
  *
  * `trigger` is rendered as-is and handed an `open` callback, so each room keeps its
  * own button language rather than every create-flow sharing one generic button.
@@ -35,62 +33,68 @@ export function Sheet({
   defaultOpen?: boolean;
   onClosed?: () => void;
 }) {
-  const ref = useRef<HTMLDialogElement>(null);
-  const [mounted, setMounted] = useState(false);
+  // The element lives in state (via a callback ref) rather than a ref object, so the
+  // handlers handed to `trigger` during render never read a ref.
+  const [dialog, setDialog] = useState<HTMLDialogElement | null>(null);
+  // Contents mount on first open, not with the page — a room with four sheets should
+  // not hydrate four forms nobody opened. A deep-linked sheet mounts immediately.
+  const [mounted, setMounted] = useState(defaultOpen);
+  const titleId = useId();
+  const introId = useId();
 
-  const open = useCallback((event?: React.MouseEvent<HTMLElement>) => {
-    const dialog = ref.current;
-    if (!dialog) return;
-    // Grow from the trigger: offset the entrance by the vector from the viewport
-    // centre to the button, scaled down so it reads as "came from there", not a fly-in.
-    if (event && window.matchMedia("(min-width: 641px)").matches) {
-      const rect = event.currentTarget.getBoundingClientRect();
-      const dx = (rect.left + rect.width / 2 - window.innerWidth / 2) * 0.25;
-      const dy = (rect.top + rect.height / 2 - window.innerHeight / 2) * 0.25;
-      dialog.style.setProperty("--from-x", `${Math.round(dx)}px`);
-      dialog.style.setProperty("--from-y", `${Math.round(dy)}px`);
-    } else {
-      dialog.style.removeProperty("--from-x");
-      dialog.style.removeProperty("--from-y");
-    }
-    setMounted(true);
-    dialog.showModal();
-  }, []);
+  const open = useCallback(
+    (event?: React.MouseEvent<HTMLElement>) => {
+      if (!dialog || dialog.open) return;
+      // Grow from the trigger: offset the entrance by the vector from the viewport
+      // centre to the button, scaled down so it reads as "came from there", not a fly-in.
+      if (event && window.matchMedia("(min-width: 641px)").matches) {
+        const rect = event.currentTarget.getBoundingClientRect();
+        const dx = (rect.left + rect.width / 2 - window.innerWidth / 2) * 0.25;
+        const dy = (rect.top + rect.height / 2 - window.innerHeight / 2) * 0.25;
+        dialog.style.setProperty("--from-x", `${Math.round(dx)}px`);
+        dialog.style.setProperty("--from-y", `${Math.round(dy)}px`);
+      } else {
+        dialog.style.removeProperty("--from-x");
+        dialog.style.removeProperty("--from-y");
+      }
+      setMounted(true);
+      dialog.showModal();
+    },
+    [dialog],
+  );
 
   const close = useCallback(() => {
-    const dialog = ref.current;
     if (!dialog?.open) return;
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       dialog.close();
       return;
     }
-    dialog.dataset.closing = "true";
+    dialog.setAttribute("data-closing", "true");
     window.setTimeout(() => {
-      dialog.dataset.closing = "false";
+      dialog.setAttribute("data-closing", "false");
       dialog.close();
     }, 170);
-  }, []);
+  }, [dialog]);
 
   useEffect(() => {
-    const dialog = ref.current;
-    if (!dialog) return;
-    const onClose = () => onClosed?.();
-    dialog.addEventListener("close", onClose);
-    return () => dialog.removeEventListener("close", onClose);
-  }, [onClosed]);
+    if (!dialog || !onClosed) return;
+    dialog.addEventListener("close", onClosed);
+    return () => dialog.removeEventListener("close", onClosed);
+  }, [dialog, onClosed]);
 
+  // `?new=1` deep links (Home's quick actions) arrive with the sheet already open.
   useEffect(() => {
-    if (defaultOpen) open();
-  }, [defaultOpen, open]);
+    if (defaultOpen && dialog && !dialog.open) dialog.showModal();
+  }, [defaultOpen, dialog]);
 
   return (
     <>
       {trigger(open)}
       <dialog
-        ref={ref}
+        ref={setDialog}
         className="sheet"
-        aria-label={title}
+        aria-labelledby={titleId}
+        aria-describedby={intro ? introId : undefined}
         onClick={(event) => {
           // A click on the backdrop lands on the dialog element itself.
           if (event.target === event.currentTarget) close();
@@ -102,8 +106,14 @@ export function Sheet({
       >
         <div className="sheet-body">
           <header className="sheet-head">
-            <h2 className="display sheet-title">{title}</h2>
-            {intro && <p className="lede">{intro}</p>}
+            <h2 className="display sheet-title" id={titleId}>
+              {title}
+            </h2>
+            {intro && (
+              <p className="lede" id={introId}>
+                {intro}
+              </p>
+            )}
           </header>
           {mounted && children(close)}
         </div>

@@ -73,7 +73,7 @@ export function OnboardingForm({
             maxLength={20}
             required
           />
-          <p className="auth-hint">lowercase, numbers and _ · 3–20 characters</p>
+          <p className="auth-hint">lowercase, numbers and _ · 3-20 characters</p>
         </div>
         <Submit pendingLabel="Saving…">That&apos;s me ↗</Submit>
       </form>
