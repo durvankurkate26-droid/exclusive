@@ -19,22 +19,41 @@ import {
  * validate on the server, which is the only place validation counts, and adding
  * react-hook-form + zod here would mean two sources of truth for four fields.
  *
- * The submit button lives in its own component because `useFormStatus` only reports
- * the pending state of a `<form>` it is *inside* — reading it in the same component
- * that renders the form always returns false.
+ * The pieces are exported because the landing page's access section is the same door
+ * with a different room around it: it composes these rather than keeping a second,
+ * fake copy of the form.
  */
 
-function Submit({ children, pendingLabel }: { children: string; pendingLabel: string }) {
+/** `useFormStatus` only reports on a form it is *inside*, hence its own component. */
+export function Submit({ children, pendingLabel }: { children: string; pendingLabel: string }) {
   const { pending } = useFormStatus();
   return (
     <button className="auth-submit" type="submit" disabled={pending} aria-busy={pending}>
-      {pending ? pendingLabel : children}
+      <span>{pending ? pendingLabel : children}</span>
+      <i aria-hidden="true">→</i>
     </button>
   );
 }
 
+/**
+ * Where you are relative to the door, read from real form state only. It says
+ * "checking" exactly as long as the server action is actually running and never
+ * plays a fake verification beat.
+ */
+export function DoorState({ state }: { state: AuthState }) {
+  const { pending } = useFormStatus();
+  const phase = pending ? "checking" : state.message ? "almost" : "outside";
+  const label = { outside: "YOU'RE OUTSIDE", checking: "CHECKING THE DOOR", almost: "ONE STEP LEFT" }[phase];
+  return (
+    <p className="door-state" data-phase={phase} aria-hidden="true">
+      <i />
+      {label}
+    </p>
+  );
+}
+
 /** Google's mark, inlined — no third-party script, no network request. */
-function GoogleMark() {
+export function GoogleMark() {
   return (
     <svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
       <path
@@ -57,19 +76,27 @@ function GoogleMark() {
   );
 }
 
-function GoogleButton({ next }: { next?: string }) {
+function GooglePending() {
+  const { pending } = useFormStatus();
+  return (
+    <button className="auth-provider" type="submit" disabled={pending} aria-busy={pending}>
+      <GoogleMark />
+      {pending ? "Opening Google…" : "Continue with Google"}
+    </button>
+  );
+}
+
+/** Google's dark-theme button: the standard mark on #131314, unmodified. */
+export function GoogleButton({ next }: { next?: string }) {
   return (
     <form action={signInWithGoogle}>
       {next && <input type="hidden" name="next" value={next} />}
-      <button className="auth-provider" type="submit">
-        <GoogleMark />
-        Continue with Google
-      </button>
+      <GooglePending />
     </form>
   );
 }
 
-function Notice({ state }: { state: AuthState }) {
+export function Notice({ state }: { state: AuthState }) {
   if (state.error) {
     return (
       <p className="auth-notice is-error" role="alert">
@@ -88,6 +115,40 @@ function Notice({ state }: { state: AuthState }) {
   return <p className="auth-notice" aria-hidden="true" />;
 }
 
+export function EmailField({ id = "email" }: { id?: string }) {
+  return (
+    <div className="auth-field">
+      <label htmlFor={id}>EMAIL</label>
+      <input
+        id={id}
+        name="email"
+        type="email"
+        inputMode="email"
+        autoComplete="email"
+        placeholder="you@wherever.com"
+        required
+      />
+    </div>
+  );
+}
+
+export function PasswordField({ id = "password", fresh }: { id?: string; fresh?: boolean }) {
+  return (
+    <div className="auth-field">
+      <label htmlFor={id}>PASSWORD</label>
+      <input
+        id={id}
+        name="password"
+        type="password"
+        autoComplete={fresh ? "new-password" : "current-password"}
+        placeholder={fresh ? "8+ characters" : "your password"}
+        minLength={fresh ? 8 : undefined}
+        required
+      />
+    </div>
+  );
+}
+
 export function SignInForm({ next, initialError }: { next?: string; initialError?: string }) {
   const [state, action] = useActionState<AuthState, FormData>(signIn, {
     error: initialError,
@@ -98,35 +159,15 @@ export function SignInForm({ next, initialError }: { next?: string; initialError
       <GoogleButton next={next} />
 
       <p className="auth-divider" aria-hidden="true">
-        <span>OR</span>
+        <span>OR WITH EMAIL</span>
       </p>
 
       <form action={action} noValidate>
+        <DoorState state={state} />
         {next && <input type="hidden" name="next" value={next} />}
-        <div className="auth-field">
-          <label htmlFor="email">EMAIL</label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            inputMode="email"
-            autoComplete="email"
-            placeholder="you@wherever.com"
-            required
-          />
-        </div>
-        <div className="auth-field">
-          <label htmlFor="password">PASSWORD</label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            placeholder="your password"
-            required
-          />
-        </div>
-        <Submit pendingLabel="Opening…">Sign in ↗</Submit>
+        <EmailField />
+        <PasswordField />
+        <Submit pendingLabel="Checking…">Sign in</Submit>
       </form>
 
       <Notice state={state} />
@@ -148,41 +189,20 @@ export function SignUpForm() {
       <GoogleButton />
 
       <p className="auth-divider" aria-hidden="true">
-        <span>OR</span>
+        <span>OR WITH EMAIL</span>
       </p>
 
       <form action={action} noValidate>
-        <div className="auth-field">
-          <label htmlFor="email">EMAIL</label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            inputMode="email"
-            autoComplete="email"
-            placeholder="you@wherever.com"
-            required
-          />
-        </div>
-        <div className="auth-field">
-          <label htmlFor="password">PASSWORD</label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="new-password"
-            placeholder="8+ characters"
-            minLength={8}
-            required
-          />
-        </div>
-        <Submit pendingLabel="Making room…">Create account ↗</Submit>
+        <DoorState state={state} />
+        <EmailField />
+        <PasswordField fresh />
+        <Submit pendingLabel="Making room…">Enter EXCLUSIVE</Submit>
       </form>
 
       <Notice state={state} />
 
       <p className="auth-switch">
-        Already have a key? <Link href="/login">Sign in</Link>
+        Already have an account? <Link href="/login">Sign in</Link>
       </p>
     </div>
   );
@@ -194,19 +214,8 @@ export function ForgotPasswordForm() {
   return (
     <div className="auth-card">
       <form action={action} noValidate>
-        <div className="auth-field">
-          <label htmlFor="email">EMAIL</label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            inputMode="email"
-            autoComplete="email"
-            placeholder="you@wherever.com"
-            required
-          />
-        </div>
-        <Submit pendingLabel="Sending…">Send reset link ↗</Submit>
+        <EmailField />
+        <Submit pendingLabel="Sending…">Send reset link</Submit>
       </form>
 
       <Notice state={state} />
@@ -236,7 +245,7 @@ export function ResetPasswordForm() {
             required
           />
         </div>
-        <Submit pendingLabel="Saving…">Set password ↗</Submit>
+        <Submit pendingLabel="Saving…">Set password</Submit>
       </form>
       <Notice state={state} />
     </div>

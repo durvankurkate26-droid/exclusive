@@ -1,0 +1,164 @@
+/* ===========================================================================
+   Landing photography layer.
+
+   Everything the real photographs added to the landing page lives here, section by
+   section, so the original choreography in globals.css stays readable. Photo frames
+   use three finishes and no single shared radius:
+
+     bare   -- 2px radius, no border: a phone photo
+     print  -- square corners with a thin warm border: a physical print
+     crop   -- 0 radius, hard crop: a frame pulled from a video
+
+   Nothing here uses a coloured glow. Depth comes from shadow tinted to the page's own
+   midnight hue, and scene colour comes from the room lighting behind a photo.
+   =========================================================================== */
+
+/* ---------------------------------------------------------------- HERO TRAIL */
+.trail-shot {
+  display: block;
+  width: 100%;
+  object-fit: cover;
+  background: #17132a;
+  box-shadow: 0 22px 50px -12px rgba(5,4,12,.72);
+  filter: contrast(1.05) saturate(.92) brightness(.93);
+  user-select: none;
+}
+.trail-bare { border-radius: 3px; }
+.trail-print { border: 5px solid #efe8f2; border-bottom-width: 16px; border-radius: 1px; }
+.trail-crop { border-radius: 0; clip-path: inset(0 6% 0 0); }
+
+/* ---------------------------------------------------------------- HERO STILLS
+   Touch and reduced-motion only. Two prints above the word, two below, never across
+   it: the word occupies roughly 44-56svh on a phone, so the bands are 24-43 and 60-86. */
+.hero-stills { position: absolute; inset: 0; z-index: 1; display: none; pointer-events: none; }
+@media (hover: none), (pointer: coarse), (prefers-reduced-motion: reduce) {
+  .hero-stills { display: block; }
+}
+.hero-still { position: absolute; box-shadow: 0 24px 60px -18px rgba(5,4,12,.8); }
+.still-1 { top: 27svh; left: -5vw; width: clamp(9rem, 44vw, 21rem); rotate: -5deg; border-radius: 2px; }
+.still-2 { top: 23svh; right: 5vw; width: clamp(6.5rem, 28vw, 13rem); rotate: 4deg; border: 4px solid #efe8f2; border-bottom-width: 13px; }
+.still-3 { top: 61svh; right: -7vw; width: clamp(9rem, 46vw, 21rem); rotate: 3deg; }
+.still-4 { top: 63svh; left: 9vw; width: clamp(6rem, 26vw, 12rem); rotate: -3.5deg; border-radius: 2px; }
+/* Wide screens under reduced motion: the prints move out to the margins. */
+@media (min-width: 900px) {
+  .still-1 { top: 16vh; left: 4vw; }
+  .still-2 { top: 12vh; right: 8vw; }
+  .still-3 { top: auto; bottom: 5vh; right: 3vw; width: clamp(9rem, 17vw, 15rem); }
+  .still-4 { top: auto; bottom: 10vh; left: 12vw; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .hero-still { animation: still-in 1.1s var(--ease-out) both; }
+  .still-1 { animation-delay: .9s; }
+  .still-2 { animation-delay: 1.05s; }
+  .still-3 { animation-delay: 1.2s; }
+  .still-4 { animation-delay: 1.32s; }
+}
+/* Reduced motion shows the hero statement statically in the lower band, which is where
+   the bottom two prints live on a phone; there, the statement wins. */
+@media (prefers-reduced-motion: reduce) and (max-width: 899px) {
+  .still-3,.still-4 { display: none; }
+}
+@keyframes still-in {
+  from { opacity: 0; clip-path: inset(0 0 100% 0); translate: 0 18px; }
+  to { opacity: 1; clip-path: inset(0 0 0 0); translate: 0 0; }
+}
+
+/* ---------------------------------------------------------------- SOCIAL CHAOS
+   Photographs share the field's box and coordinate system but sit on a layer beneath
+   every message, so chat always crosses in front of them. */
+.chaos-field { position: absolute; z-index: 2; inset: 0; }
+.chaos-photos { position: absolute; z-index: 1; inset: 0; }
+.chaos-field .chaos-cards { z-index: 2; }
+.chaos-photo {
+  position: absolute;
+  left: calc(50% + var(--cp-x));
+  top: calc(50% + var(--cp-y));
+  width: var(--cp-w);
+  transform: translate(-50%,-50%) rotate(var(--cp-r));
+  box-shadow: 0 30px 70px -20px rgba(5,4,12,.85);
+}
+.chaos-photo[data-role="deep"] { border-radius: 0; filter: blur(3px) brightness(.62) saturate(.8); opacity: .3; }
+.chaos-photo[data-role="mid"] { border-radius: 2px; opacity: .82; }
+/* The one that carries into TEA is a print: thin border, warmer than the chat around it. */
+.chaos-photo[data-role="thread"] { border: 4px solid #efe8f2; border-bottom-width: 12px; }
+.chaos-stage[data-armed="true"] .chaos-photo { opacity: 0; visibility: hidden; }
+.chaos-stage[data-chaos-live] .chaos-photo { will-change: transform, opacity, clip-path; }
+@media (max-width: 640px) {
+  .chaos-photo { left: calc(50% + var(--cp-mx)); width: var(--cp-mw); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chaos-field { position: relative; inset: auto; height: 74svh; overflow: hidden; }
+  .chaos-field .chaos-cards { position: absolute; inset: 0; height: auto; }
+}
+
+/* ---------------------------------------------------------------- THE LOOP
+   Photo fragments in the empty column opposite each station. Small, light, and never
+   behind copy. `--loop-p` (0-1) is the charge's progress; each fragment drifts relative
+   to its own station (`--at`), and the stage decides how much and how crooked. */
+.loop-photo { position: relative; z-index: 1; justify-self: center; width: clamp(7rem, 12vw, 11rem); pointer-events: none;
+  --drift: 60px; --tilt: 0deg;
+  transform: translate3d(0, calc((var(--loop-p, .5) - var(--at)) * var(--drift) * -1), 0) rotate(var(--tilt)); }
+.loop-shot { box-shadow: 0 24px 50px -18px rgba(4,3,10,.9); }
+.loop-photo[data-stage="tea"] { --tilt: -6deg; --drift: 70px; translate: 18% 0; }
+.loop-photo[data-stage="oneday"] { --tilt: 3deg; --drift: 150px; translate: -14% 0; }
+.loop-photo[data-stage="align"] { --tilt: 0deg; --drift: 40px; }
+.loop-photo[data-stage="create"] .loop-shot { border: 4px solid #efe8f2; border-bottom-width: 12px; }
+.loop-photo[data-stage="create"] { --tilt: -2deg; --drift: 60px; translate: 10% 0; }
+.loop-photo[data-stage="vault"] { --drift: 20px; display: grid; width: clamp(9rem, 15vw, 13rem); }
+.loop-photo[data-stage="vault"] .loop-shot { grid-area: 1 / 1; }
+.loop-photo[data-stage="vault"] .loop-shot:first-child { rotate: -4deg; translate: -14% 6%; }
+.loop-photo[data-stage="vault"] .loop-shot:last-child { rotate: 3deg; translate: 12% -4%; width: 72%; justify-self: end; }
+/* Revealed by the charge, not by the viewport: a wipe from below as the node lights. */
+.loop-track[data-armed] .loop-photo .loop-shot { clip-path: inset(100% 0 0 0); opacity: .2; transition: clip-path .9s var(--ease-out), opacity .6s var(--ease-out); }
+.loop-track[data-armed] .loop-photo[data-lit] .loop-shot { clip-path: inset(0 0 0 0); opacity: 1; }
+.loop-track[data-armed] .loop-photo[data-lit] .loop-shot:last-child { transition-delay: .12s; }
+@media (max-width: 860px) { .loop-photo { display: none; } }
+@media (prefers-reduced-motion: reduce) { .loop-photo { transform: rotate(var(--tilt)); } }
+
+/* ---------------------------------------------------------------- MENU PREVIEW
+   The page area left of the panel is dead space while the menu is open. Hovering a
+   room puts one of its photos there. Wide fine-pointer screens only; touch never
+   depends on hover. */
+.menu-preview { display: none; }
+@media (min-width: 1100px) and (hover: hover) and (pointer: fine) {
+  .menu-preview { position: absolute; z-index: 1; top: 50%; left: calc((100vw - min(35rem, 100vw)) / 2); display: grid; width: min(24vw, 22rem); translate: -50% -50%; pointer-events: none; }
+  .menu-pv { grid-area: 1 / 1; box-shadow: 0 40px 90px -30px rgba(4,3,10,.95); clip-path: inset(100% 0 0 0); scale: 1.06; rotate: -2deg; transition: clip-path .28s var(--ease-out), scale .28s var(--ease-out); }
+  .menu-pv:nth-child(even) { rotate: 2.5deg; }
+  /* The photo preview does the job the abstract shapes used to; keep one, not both. */
+  .menu-shape { display: none; }
+  .menu-pv[data-on] { clip-path: inset(0 0 0 0); scale: 1; transition-duration: .6s, .8s; }
+}
+
+/* ---------------------------------------------------------------- ACCESS
+   The emotional resolve on the left, the door on the right. Photos overlap and run off
+   their column; the headline crosses their lower edge. */
+.access { text-align: left; }
+.access-grid { display: grid; max-width: 78rem; margin: 0 auto; grid-template-columns: minmax(0, 1.25fr) minmax(0, .75fr); gap: clamp(2.5rem, 6vw, 6rem); align-items: end; }
+.access-story { position: relative; }
+.access-photos { position: relative; height: clamp(16rem, 27vw, 23rem); margin-bottom: 1.25rem; }
+.ap { position: absolute !important; box-shadow: 0 30px 70px -26px rgba(4,3,10,.95); }
+.ap-1 { left: -2%; top: 3rem; width: 54%; rotate: -2deg; border-radius: 2px; }
+.ap-2 { z-index: 2; left: 49%; top: 0; width: 25%; rotate: 3deg; border: 4px solid #efe8f2; border-bottom-width: 13px; }
+.ap-3 { z-index: 1; left: 78%; top: 5.5rem; width: 17%; rotate: -4deg; }
+.ap-4 { z-index: 1; left: 24%; top: 9.5rem; width: 27%; rotate: 2deg; border-radius: 2px; }
+.access-lead,.access h2,.access-sub { position: relative; z-index: 3; }
+.access-lead { margin: 0 0 .6rem; color: #d9d4ef; font-size: clamp(1.1rem, 1.8vw, 1.45rem); font-weight: 500; text-shadow: 0 2px 20px rgba(8,6,18,.95); }
+.access h2 { margin: 0; font-family: var(--font-display); font-size: clamp(3rem, 7.4vw, 6.9rem); font-weight: 400; line-height: .88; text-shadow: 0 6px 40px rgba(8,6,18,.85); }
+.access-sub { max-width: 40ch; margin: 1.2rem 0 0; color: var(--muted); font-size: .9375rem; line-height: 1.5; }
+.access-door { width: 100%; max-width: 26rem; justify-self: end; }
+.access-door-title { margin: 0 0 1.3rem; font-family: var(--font-display); font-size: clamp(1.9rem, 2.6vw, 2.4rem); font-weight: 400; line-height: .95; }
+.access-modes { position: relative; display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 1.1rem; }
+.access-modes button { padding: .55rem 0 .7rem; border: 0; background: none; color: var(--muted); font: inherit; font-size: .875rem; font-weight: 600; text-align: left; cursor: pointer; transition: color .2s ease; }
+.access-modes button[aria-selected="true"] { color: #fff; }
+.access-modes button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.access-modes i { position: absolute; left: 0; bottom: -1px; width: 50%; height: 2px; background: var(--pink); transition: transform .35s var(--ease-out); }
+.access-modes i[data-mode="signin"] { transform: translateX(100%); }
+.access .auth-card { border-top-color: rgba(239,232,242,.1); }
+@media (max-width: 900px) {
+  .access-grid { grid-template-columns: minmax(0, 1fr); gap: 2.5rem; }
+  .access-photos { height: clamp(10rem, 42vw, 15rem); margin-bottom: .75rem; }
+  .ap-4 { display: none; }
+  .ap-1 { top: 1.5rem; width: 58%; }
+  .ap-3 { top: 3.5rem; }
+  .access-door { justify-self: stretch; max-width: 30rem; }
+}

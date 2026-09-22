@@ -6,11 +6,11 @@ export const rooms: Array<{
   description: string;
   accent: Accent;
 }> = [
-  { number: "01", name: "TEA", description: "the group chat's group chat. spill zone — screenshots stay in the room.", accent: "pink" },
-  { number: "02", name: "CREATE", description: "that reel we keep not making. plan it, shoot it, ship it — together.", accent: "violet" },
-  { number: "03", name: "ONE DAY", description: "Goa. eventually. a home for the someday-plans so they stop dying in the chat.", accent: "cyan" },
-  { number: "04", name: "ALIGN", description: "who's actually free Saturday. one tap, everyone's availability, no more polls.", accent: "pink" },
-  { number: "05", name: "VAULT", description: "the photos — the good ones. every memory in one place, only for the people who were there.", accent: "violet" },
+  { number: "01", name: "TEA", description: "the group chat's group chat. spill it here; screenshots stay in the room.", accent: "pink" },
+  { number: "02", name: "CREATE", description: "that reel we keep not making. plan it, shoot it, post it. together.", accent: "violet" },
+  { number: "03", name: "ONE DAY", description: "Goa. eventually. a home for the someday plans, so they stop dying in the chat.", accent: "cyan" },
+  { number: "04", name: "ALIGN", description: "who's actually free Saturday. one tap each, one answer, no 200-reply poll.", accent: "pink" },
+  { number: "05", name: "VAULT", description: "the photos. the good ones. every memory in one place, only for the people who were there.", accent: "violet" },
 ];
 
 /**
@@ -130,7 +130,36 @@ export const loopStations: Array<{
     stage: "MEMORY",
     said: "\u201Csend the good ones\u201D",
     room: "VAULT",
-    becomes: "Photos, clips and quotes in one capsule \u2014 only for the people who were there.",
+    becomes: "Photos, clips and quotes in one capsule, only for the people who were there.",
     accent: "violet",
   },
+];
+
+/**
+ * Photographs inside the chaos field.
+ *
+ * Atmosphere, not content: the messages stay the story. They share the field's
+ * coordinate system (vw/vh offsets from centre) and sit on a layer beneath every message,
+ * so chat always crosses in front of them. `depth` works as it does for fragments:
+ * negative is far (smaller drift, dimmer, softer), positive is near.
+ *
+ * The last one is the thread into the next scene. It lands close to centre, survives
+ * the organisation beat, and is the final thing the iris closes on -- and TEA opens on
+ * the same photograph.
+ */
+export const chaosPhotos: Array<{
+  id: "lectureNap" | "cafeSelfie" | "corridorMirror" | "waitWhat";
+  x: number;
+  y: number;
+  w: number;
+  rotate: number;
+  depth: number;
+  at: number;
+  mobile: boolean;
+  role: "deep" | "mid" | "thread";
+}> = [
+  { id: "lectureNap", x: -12, y: -4, w: 34, rotate: -3, depth: -0.9, at: 0.02, mobile: true, role: "deep" },
+  { id: "cafeSelfie", x: 38, y: -9, w: 15, rotate: 6, depth: -0.35, at: 0.12, mobile: false, role: "mid" },
+  { id: "corridorMirror", x: -35, y: 13, w: 10.5, rotate: -7, depth: 0.25, at: 0.2, mobile: false, role: "mid" },
+  { id: "waitWhat", x: 3, y: -17, w: 10, rotate: 4, depth: 0.55, at: 0.27, mobile: true, role: "thread" },
 ];

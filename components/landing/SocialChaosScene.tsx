@@ -2,7 +2,8 @@
 
 import { useLayoutEffect, useRef, type CSSProperties } from "react";
 import { gsap, pinnedTail } from "@/lib/animations/gsap";
-import { chatFragments, type ChatFragment } from "@/lib/constants/landing";
+import { chaosPhotos, chatFragments, type ChatFragment } from "@/lib/constants/landing";
+import { Shot } from "./Shot";
 
 /**
  * Scroll choreography for the Social Chaos scene.
@@ -91,12 +92,13 @@ export function SocialChaosScene() {
     const build = (mobile: boolean) => {
       const context = gsap.context(() => {
         const stage = section.querySelector<HTMLElement>("[data-chaos-stage]");
-        const field = section.querySelector<HTMLElement>("[data-chaos-cards]");
+        const field = section.querySelector<HTMLElement>("[data-chaos-field]");
         const aperture = section.querySelector<HTMLElement>("[data-chaos-aperture]");
         const glow = section.querySelector<HTMLElement>("[data-chaos-glow]");
         const label = section.querySelector<HTMLElement>("[data-chaos-label]");
         const payoff = section.querySelector<HTMLElement>("[data-chaos-payoff]");
         const cards = gsap.utils.toArray<HTMLElement>("[data-chaos-card]");
+        const shots = gsap.utils.toArray<HTMLElement>("[data-chaos-photo]");
 
         // Hide the field only once the timeline is definitely taking over, so a failed or
         // disabled script leaves the composition on screen instead of a blank viewport.
@@ -330,6 +332,54 @@ export function SocialChaosScene() {
           );
         });
 
+        // --- photographs. Secondary to the messages, so they move less and later: a
+        // vertical wipe instead of a flight, a gentler drift, and during organisation
+        // they are pulled in with the field. The thread photo is the exception -- it
+        // travels to the focal point and grows slightly, so it is the last thing the
+        // iris closes on and the first thing TEA opens with.
+        chaosPhotos.forEach((shot, index) => {
+          const el = shots[index];
+          if (!el) return;
+          if (mobile && !shot.mobile) {
+            gsap.set(el, { display: "none" });
+            return;
+          }
+          const px = () => ((mobile ? shot.x * 0.5 : shot.x) / 100) * window.innerWidth;
+          const py = () => (shot.y / 100) * window.innerHeight;
+          const rest = shot.role === "deep" ? 0.3 : shot.role === "mid" ? 0.82 : 1;
+          gsap.set(el, { xPercent: -50, yPercent: -50, rotation: shot.rotate, force3D: true });
+
+          timeline.fromTo(
+            el,
+            { autoAlpha: 0, clipPath: "inset(0% 0% 100% 0%)", y: () => window.innerHeight * 0.06, scale: 1.08 },
+            {
+              autoAlpha: rest,
+              clipPath: "inset(0% 0% 0% 0%)",
+              y: 0,
+              scale: 1,
+              duration: 0.14,
+              ease: "power2.out",
+              immediateRender: false,
+            },
+            shot.at,
+          );
+          const drift = shot.depth * (mobile ? 10 : 26);
+          timeline.to(
+            el,
+            { x: drift, y: -drift * 0.5, rotation: shot.rotate + shot.depth * 1.1, duration: 0.15, ease: "sine.inOut" },
+            0.51,
+          );
+          if (shot.role === "thread") {
+            timeline
+              .to(el, { x: () => -px(), y: () => -py(), rotation: 0, scale: 1.3, duration: 0.17, ease: "power2.inOut" }, 0.665)
+              .to(el, { scale: 1.2, duration: 0.11, ease: "power3.in" }, 0.83);
+          } else {
+            timeline
+              .to(el, { x: () => -px() * 0.58, y: () => -py() * 0.58, rotation: shot.rotate * 0.15, autoAlpha: rest * 0.7, duration: 0.15, ease: "power2.inOut" }, 0.665)
+              .to(el, { x: () => -px() * 0.9, y: () => -py() * 0.9, scale: 0.8, duration: 0.11, ease: "power3.in" }, 0.83);
+          }
+        });
+
         // The label is squeezed out of frame as the organisation beat begins.
         timeline.fromTo(
           label,
@@ -351,6 +401,9 @@ export function SocialChaosScene() {
         timeline
           .to(aperture, { autoAlpha: 1, scale: 1, duration: 0.06, ease: "sine.out" }, 0.81)
           .to(field, { scale: 1.05, duration: 0.11, ease: "power2.in" }, 0.83)
+          // The payoff lands on top of the closing field; the field steps back so the
+          // headline is never fighting a pile of messages for the same pixels.
+          .to(field, { opacity: 0.32, duration: 0.07, ease: "none" }, 0.8)
           .to(field, { clipPath: "circle(0% at 50% 50%)", duration: 0.11, ease: "power3.inOut" }, 0.83)
           .to(aperture, { scale: 0.02, duration: 0.11, ease: "power3.inOut" }, 0.83)
           .to(glow, { scale: 1.6, autoAlpha: 0, duration: 0.14, ease: "none" }, 0.86)
@@ -426,6 +479,30 @@ export function SocialChaosScene() {
       <div data-chaos-stage className="chaos-stage">
         <div data-chaos-glow className="chaos-glow" aria-hidden="true" />
         <p data-chaos-label className="chaos-label">2:00AM · 400 UNREAD · THE CHAT NEVER SLEEPS</p>
+        <div data-chaos-field className="chaos-field">
+        <div className="chaos-photos" aria-hidden="true">
+          {chaosPhotos.map((shot) => (
+            <Shot
+              key={shot.id}
+              id={shot.id}
+              decorative
+              data-chaos-photo
+              data-role={shot.role}
+              sizes={shot.role === "deep" ? "(max-width: 640px) 86vw, 40vw" : "(max-width: 640px) 26vw, 15vw"}
+              className="chaos-photo"
+              style={
+                {
+                  "--cp-x": `${shot.x}vw`,
+                  "--cp-y": `${shot.y}vh`,
+                  "--cp-mx": `${shot.x * 0.5}vw`,
+                  "--cp-w": `${shot.w}vw`,
+                  "--cp-mw": `${shot.role === "deep" ? 86 : shot.w * 2.4}vw`,
+                  "--cp-r": `${shot.rotate}deg`,
+                } as CSSProperties
+              }
+            />
+          ))}
+        </div>
         <ul data-chaos-cards className="chaos-cards" aria-label="A rush of group chat fragments">
           {chatFragments.map((fragment) => (
             <li
@@ -450,9 +527,9 @@ export function SocialChaosScene() {
             </li>
           ))}
         </ul>
+        </div>
         <div data-chaos-aperture className="chaos-aperture" aria-hidden="true" />
         <div data-chaos-payoff className="chaos-payoff">
-          <p className="eyebrow text-[var(--pink)]">FROM THE NOISE →</p>
           <h2 id="chaos-title">EVERYTHING,<br /><span>FINALLY SORTED.</span></h2>
         </div>
       </div>

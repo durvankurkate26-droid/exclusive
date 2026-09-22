@@ -8,16 +8,16 @@ export default function SignUpPage() {
   return (
     <>
       <AuthIntro
-        kicker="↳ INVITE-ONLY · BY YOUR PEOPLE"
+        kicker="↳ PRIVATE BY DESIGN"
         title={
           <>
-            MAKE YOUR
+            YOU&apos;RE ALMOST
             <br />
-            <span>KEY.</span>
+            <span>INSIDE.</span>
           </>
         }
       >
-        One account. Then your group adds you, or you start one.
+        One account. Then start a group, or join the one your friends already made.
       </AuthIntro>
       <SignUpForm />
     </>

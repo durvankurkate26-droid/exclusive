@@ -3,6 +3,8 @@
 import { Fragment, useLayoutEffect, useRef } from "react";
 import { gsap, ScrollTrigger } from "@/lib/animations/gsap";
 import { loopStations } from "@/lib/constants/landing";
+import type { PhotoId } from "@/lib/content/group-photos";
+import { Shot } from "./Shot";
 import { Reveal } from "./Reveal";
 
 /**
@@ -23,6 +25,13 @@ import { Reveal } from "./Reveal";
  * CSS variables carry the measurement; everything visual (the drawn thread, the spark,
  * the lit state) is CSS. There is one ScrollTrigger for the whole section.
  */
+/**
+ * One photographic fragment per station, hung in the empty column opposite its copy so
+ * it never sits behind text. How each one behaves is the stage it belongs to: crooked
+ * at TEA, drifting at ONE DAY, square at ALIGN, framed at CREATE, settled at VAULT.
+ */
+const LOOP_PHOTOS: PhotoId[][] = [["corridorTrio"], ["forestFlex"], ["plaidTrio"], ["mirrorTrio"], ["ethnicFive", "sareeHug"]];
+
 export function ConnectedJourney() {
   const trackRef = useRef<HTMLDivElement>(null);
 
@@ -35,6 +44,7 @@ export function ConnectedJourney() {
     media.add("(prefers-reduced-motion: no-preference)", () => {
       const nodes = gsap.utils.toArray<HTMLElement>("[data-node]", track);
       const stations = gsap.utils.toArray<HTMLElement>("[data-station]", track);
+      const shots = gsap.utils.toArray<HTMLElement>("[data-loop-photo]", track);
       if (!nodes.length) return;
 
       // Dim the stations only once the charge is definitely going to run. A failed or
@@ -59,12 +69,14 @@ export function ConnectedJourney() {
         const last = centres[centres.length - 1];
         const head = first + progress * (last - first);
         track.style.setProperty("--loop-len", `${head - first}px`);
+        // One number drives every fragment's parallax; CSS multiplies it per stage.
+        track.style.setProperty("--loop-p", progress.toFixed(4));
         // A station lights a hair before the charge is level with it, which reads as the
         // energy arriving rather than as a checkbox being ticked behind it. The node and
         // its copy are separate grid children, so both carry the state.
         centres.forEach((centre, i) => {
           const lit = head >= centre - 10;
-          for (const el of [nodes[i], stations[i]]) {
+          for (const el of [nodes[i], stations[i], shots[i]]) {
             if (lit) el?.setAttribute("data-lit", "");
             else el?.removeAttribute("data-lit");
           }
@@ -87,7 +99,7 @@ export function ConnectedJourney() {
       return () => {
         trigger.kill();
         delete track.dataset.armed;
-        [...nodes, ...stations].forEach((el) => el.removeAttribute("data-lit"));
+        [...nodes, ...stations, ...shots].forEach((el) => el.removeAttribute("data-lit"));
       };
     });
 
@@ -125,6 +137,17 @@ export function ConnectedJourney() {
               style={{ gridRow: index + 1 }}
               aria-hidden="true"
             />
+            <div
+              data-loop-photo
+              className="loop-photo"
+              data-stage={station.room.replace(" ", "").toLowerCase()}
+              style={{ gridRow: index + 1, gridColumn: index % 2 ? 1 : 3, "--at": index / 4 } as React.CSSProperties}
+              aria-hidden="true"
+            >
+              {LOOP_PHOTOS[index].map((id) => (
+                <Shot key={id} id={id} decorative sizes="(max-width: 1100px) 16vw, 13rem" className="loop-shot" />
+              ))}
+            </div>
             <article
               data-station
               className="loop-station"

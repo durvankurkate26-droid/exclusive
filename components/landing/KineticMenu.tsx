@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { rooms } from "@/lib/constants/landing";
+import { menuPreview } from "@/lib/content/group-photos";
+import { Shot } from "./Shot";
 import { roomElementTarget, roomScrollTarget } from "@/lib/rooms-nav";
 
 type KineticMenuProps = {
@@ -16,6 +18,10 @@ const prefersReducedMotion = () =>
 export function KineticMenu({ open, onClose }: KineticMenuProps) {
   const panelRef = useRef<HTMLElement>(null);
   const [activeShape, setActiveShape] = useState(-1);
+  // Previews mount on the first open and stay mounted: the menu never pays for five
+  // photos unless someone actually opens it, and never pays twice.
+  const [seen, setSeen] = useState(false);
+  if (open && !seen) setSeen(true);
 
   useEffect(() => {
     if (!open) return;
@@ -92,6 +98,21 @@ export function KineticMenu({ open, onClose }: KineticMenuProps) {
   return (
     <div id="kinetic-menu" className={open ? "kinetic-menu is-open" : "kinetic-menu"} aria-hidden={!open}>
       <button className="menu-scrim" type="button" onClick={onClose} aria-label="Close menu" tabIndex={open ? 0 : -1} />
+      {seen && (
+        <div className="menu-preview" aria-hidden="true">
+          {menuPreview.map((id, index) => (
+            <Shot
+              key={id}
+              id={id}
+              decorative
+              eager
+              sizes="26vw"
+              className="menu-pv"
+              data-on={open && activeShape === index ? "" : undefined}
+            />
+          ))}
+        </div>
+      )}
       <aside ref={panelRef} className="kinetic-panel" role="dialog" aria-modal="true" aria-label="EXCLUSIVE rooms menu">
         <div className="menu-layer menu-layer-one" />
         <div className="menu-layer menu-layer-two" />
@@ -123,7 +144,7 @@ export function KineticMenu({ open, onClose }: KineticMenuProps) {
             <a href="#access" tabIndex={open ? 0 : -1} onClick={(event) => goToAnchor(event, "#access")}>
               GET ACCESS ↗
             </a>
-            <span>INVITE-ONLY</span>
+            <span>PRIVATE BY DESIGN</span>
           </div>
         </div>
       </aside>

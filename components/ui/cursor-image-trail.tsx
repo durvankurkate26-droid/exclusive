@@ -9,6 +9,10 @@ export interface CursorImageTrailProps {
   items: React.ReactNode[];
   /** Size of each trail item in px. @default 120 */
   itemSize?: number;
+  /** Per-item widths, indexed like `items`. Overrides `itemSize` where present. */
+  itemWidths?: number[];
+  /** Random scale variance applied per spawn, e.g. 0.1 = 0.9-1.1. @default 0 */
+  scaleRange?: number;
   /** Max simultaneous items in the trail. @default 8 */
   trailLength?: number;
   /** Minimum cursor travel (px) before spawning a new item. @default 80 */
@@ -35,6 +39,7 @@ interface TrailItem {
   x: number;
   y: number;
   rotation: number;
+  jitter: number;
   itemIndex: number;
 }
 
@@ -44,6 +49,8 @@ const nextId = () => ++_id;
 export function CursorImageTrail({
   items,
   itemSize = 120,
+  itemWidths,
+  scaleRange = 0,
   trailLength = 8,
   spawnDistance = 80,
   rotationRange = 20,
@@ -86,11 +93,12 @@ export function CursorImageTrail({
       lastPos.current = { x, y };
 
       const rotation = (Math.random() * 2 - 1) * rotationRange;
+      const jitter = 1 + (Math.random() * 2 - 1) * scaleRange;
       const itemIndex = itemCounter.current % items.length;
       itemCounter.current += 1;
 
       setTrail((prev) => {
-        const next = [...prev, { id: nextId(), x, y, rotation, itemIndex }];
+        const next = [...prev, { id: nextId(), x, y, rotation, jitter, itemIndex }];
         return next.slice(-trailLength);
       });
     };
@@ -101,7 +109,7 @@ export function CursorImageTrail({
       el.removeEventListener("mousemove", onMove);
       el.removeEventListener("mouseleave", onLeave);
     };
-  }, [items, spawnDistance, rotationRange, trailLength, containerRef, enabled]);
+  }, [items, spawnDistance, rotationRange, scaleRange, trailLength, containerRef, enabled]);
 
   const total = trail.length;
 
@@ -115,7 +123,7 @@ export function CursorImageTrail({
       <AnimatePresence>
         {trail.map((item, i) => {
           const age = total - 1 - i;
-          const scale = 0.6 + 0.4 * (1 - age / trailLength);
+          const scale = (0.6 + 0.4 * (1 - age / trailLength)) * item.jitter;
 
           return (
             <motion.div
@@ -124,24 +132,26 @@ export function CursorImageTrail({
               style={{
                 left: item.x,
                 top: item.y,
-                width: itemSize,
+                width: itemWidths?.[item.itemIndex] ?? itemSize,
                 x: "-50%",
                 y: "-50%",
                 zIndex: i,
               }}
               initial={{
                 opacity: 0,
-                scale: 0.5,
+                scale: 0.78 * item.jitter,
                 rotate: item.rotation * 1.5,
+                filter: "blur(6px) brightness(1.6)",
               }}
               animate={{
                 opacity: 1,
                 scale,
                 rotate: item.rotation,
+                filter: "blur(0px) brightness(1)",
               }}
               exit={{
                 opacity: 0,
-                scale: 0.3,
+                scale: 0.7,
                 rotate: item.rotation * 0.5,
                 filter: "blur(4px)",
               }}

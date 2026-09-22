@@ -135,176 +135,6 @@
   text-wrap: pretty;
 }
 
-/* ---------------------------------------------------------------- the card */
-
-.auth-card {
-  margin-top: clamp(1.75rem, 5vh, 2.5rem);
-  padding: clamp(1.35rem, 4vw, 1.8rem);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 1.4rem;
-  background: linear-gradient(170deg, rgba(29, 23, 56, 0.9), rgba(16, 13, 34, 0.9));
-  box-shadow: 0 30px 80px rgba(4, 3, 10, 0.55);
-}
-
-.auth-provider {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  justify-content: center;
-  gap: 0.7rem;
-  padding: 0.85rem 1.2rem;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--foreground);
-  font: inherit;
-  font-size: 0.9375rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    background 0.25s ease,
-    border-color 0.25s ease,
-    transform 0.25s ease;
-}
-
-.auth-provider svg {
-  width: 1.15rem;
-  height: 1.15rem;
-  flex: none;
-}
-
-.auth-provider:hover {
-  transform: translateY(-1px);
-  border-color: rgba(255, 255, 255, 0.32);
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.auth-divider {
-  display: flex;
-  align-items: center;
-  gap: 0.9rem;
-  margin: 1.3rem 0;
-  color: var(--muted);
-  font-family: var(--font-mono);
-  font-size: 0.5625rem;
-  letter-spacing: 0.3em;
-}
-
-.auth-divider::before,
-.auth-divider::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: rgba(255, 255, 255, 0.11);
-}
-
-.auth-field {
-  margin-bottom: 0.85rem;
-}
-
-.auth-field label {
-  display: block;
-  margin: 0 0 0.42rem;
-  color: var(--muted);
-  font-family: var(--font-mono);
-  font-size: 0.5625rem;
-  letter-spacing: 0.26em;
-}
-
-.auth-field input {
-  display: block;
-  width: 100%;
-  padding: 0.8rem 1.05rem;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 0.85rem;
-  outline: none;
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--foreground);
-  font: inherit;
-  font-size: 0.9375rem;
-  transition:
-    border-color 0.2s ease,
-    box-shadow 0.2s ease;
-}
-
-.auth-field input::placeholder {
-  color: rgba(164, 159, 196, 0.5);
-}
-
-.auth-field input:focus {
-  border-color: var(--cyan);
-  box-shadow: 0 0 0 3px rgba(91, 224, 255, 0.13);
-}
-
-.auth-submit {
-  width: 100%;
-  margin-top: 0.45rem;
-  padding: 0.9rem 1.5rem;
-  border: 0;
-  border-radius: 999px;
-  background: linear-gradient(135deg, var(--violet), var(--pink));
-  box-shadow: 0 12px 32px rgba(255, 92, 200, 0.34);
-  color: #fff;
-  font: inherit;
-  font-size: 0.9375rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition:
-    transform 0.25s ease,
-    box-shadow 0.25s ease,
-    opacity 0.2s ease;
-}
-
-.auth-submit:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 16px 38px rgba(255, 92, 200, 0.44);
-}
-
-.auth-submit:disabled {
-  cursor: progress;
-  opacity: 0.6;
-  transform: none;
-}
-
-/* Height is reserved whether or not there is a message, so the card never jumps
-   under the cursor the moment a form fails. */
-.auth-notice {
-  min-height: 1.35rem;
-  margin: 0.9rem 0 0;
-  color: var(--cyan);
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  line-height: 1.5;
-  text-align: center;
-}
-
-.auth-notice.is-error {
-  color: #ff9ecb;
-}
-
-.auth-switch {
-  display: flex;
-  justify-content: center;
-  gap: 0.6rem;
-  margin: 1rem 0 0;
-  color: var(--muted);
-  font-size: 0.8125rem;
-}
-
-.auth-switch a {
-  color: var(--pink);
-  font-weight: 600;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.auth-provider:focus-visible,
-.auth-submit:focus-visible,
-.auth-switch a:focus-visible {
-  outline: 1px solid var(--cyan);
-  outline-offset: 4px;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .auth-ambient {
     animation: none;
@@ -401,4 +231,17 @@
   display: block;
   text-align: center;
   text-decoration: none;
+}
+
+/* The door's photographs: small, still, overlapping. */
+.auth-photos { position: relative; height: clamp(10rem, 18vw, 15.75rem); margin-bottom: clamp(1.25rem, 3vh, 2rem); }
+.auth-ph { position: absolute !important; box-shadow: 0 24px 50px -20px rgba(4,3,10,.95); }
+.auth-ph-1 { left: 0; top: 1.4rem; width: min(62%, 18rem); rotate: -2.5deg; border-radius: 2px; }
+.auth-ph-2 { z-index: 2; left: min(52%, 15rem); top: 0; width: min(24%, 7.5rem); rotate: 3deg; border: 4px solid #efe8f2; border-bottom-width: 12px; }
+.auth-ph-3 { z-index: 1; left: min(68%, 20rem); top: 3rem; width: min(34%, 11rem); rotate: -3deg; }
+@media (max-width: 900px) {
+  .auth-photos { height: calc(39vw + .6rem); max-height: 12rem; margin-bottom: 1rem; }
+  .auth-ph-1 { top: .6rem; width: 52%; }
+  .auth-ph-2 { left: 46%; width: 21%; }
+  .auth-ph-3 { left: 64%; top: 1.6rem; width: 33%; }
 }

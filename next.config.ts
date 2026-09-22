@@ -11,6 +11,9 @@ import type { NextConfig } from "next";
  */
 const nextConfig: NextConfig = {
   images: {
+    // The landing page's group photos are local WebP masters; AVIF first roughly halves
+    // what a phone downloads for the same visual quality.
+    formats: ["image/avif", "image/webp"],
     // Avatars and Vault media are served from Supabase Storage. The hostname is
     // project-specific, so it is read from the same env var the client uses rather
     // than hardcoded.
