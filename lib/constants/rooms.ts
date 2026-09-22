@@ -14,8 +14,8 @@ export type Room = {
   /** URL segment under /g/[slug]. Home is the group root, so its segment is "". */
   segment: string;
   label: string;
-  /** Two-letter mark for the mobile dock, where there is no room for a word. */
-  mark: string;
+  /** Dock label. Five characters of Bebas is the most a sixth of a phone holds. */
+  short: string;
   accent: string;
   /** Shown in the room header. Says what the room is *for*, not what it contains. */
   tagline: string;
@@ -28,7 +28,7 @@ export const ROOMS: Room[] = [
     key: "home",
     segment: "",
     label: "HOME",
-    mark: "HM",
+    short: "HOME",
     accent: "var(--violet)",
     tagline: "What's happening with us right now.",
     empty: { line: "Quiet in here.", hint: "Start something in any room." },
@@ -37,35 +37,36 @@ export const ROOMS: Room[] = [
     key: "tea",
     segment: "tea",
     label: "TEA",
-    mark: "TE",
+    short: "TEA",
     accent: "var(--pink)",
     tagline: "The group chat's group chat.",
-    empty: { line: "No tea yet.", hint: "Suspiciously peaceful." },
+    empty: { line: "Suspiciously peaceful.", hint: "Nobody has dropped anything. Yet." },
   },
   {
     key: "create",
     segment: "create",
     label: "CREATE",
-    mark: "CR",
+    short: "MAKE",
     accent: "var(--violet)",
     tagline: "The thing you keep saying you'll make.",
-    empty: { line: "Nothing in the studio.", hint: "Someone needs to send a reel." },
+    empty: { line: "Someone needs to send a reel.", hint: "Paste a reference, say what you want to make, see who is down." },
   },
   {
     key: "one-day",
     segment: "one-day",
     label: "ONE DAY",
-    mark: "OD",
+    short: "1 DAY",
     accent: "var(--cyan)",
     tagline: "Someday, but written down.",
-    empty: { line: "No future bad decisions yet.", hint: "Put one in." },
+    empty: { line: "No future bad decisions yet.", hint: "The trip, the drive, the thing you keep saying you should do. Put it up." },
   },
   {
     key: "align",
     segment: "align",
     label: "ALIGN",
-    mark: "AL",
-    accent: "var(--pink)",
+    short: "ALIGN",
+    // Violet and pink meeting: the two rooms that feed it (CREATE, TEA's energy).
+    accent: "#c77dff",
     tagline: "What's still stopping this.",
     empty: { line: "Nothing to figure out.", hint: "For once." },
   },
@@ -73,10 +74,10 @@ export const ROOMS: Room[] = [
     key: "vault",
     segment: "vault",
     label: "VAULT",
-    mark: "VA",
+    short: "VAULT",
     accent: "#b9a7ff",
     tagline: "The reason any of it mattered.",
-    empty: { line: "Nothing here yet.", hint: "Go make a memory." },
+    empty: { line: "Go make a memory.", hint: "Then come back and put the photos somewhere they will not get buried." },
   },
 ];
 

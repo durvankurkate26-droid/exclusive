@@ -1,32 +1,53 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import type { ReactNode } from "react";
 import { ROOM_BY_KEY, roomFromPath } from "@/lib/constants/rooms";
 
 /**
- * The light in the room.
+ * The light in the house.
  *
- * One fixed wash behind everything, whose colour is the current room's accent. Moving
- * between rooms crossfades the tint rather than swapping a background, which is the
- * same trick the landing page uses to stop section boundaries reading as page
- * changes — here it is what makes route changes feel like walking between rooms of
- * one house rather than loading five different sites.
- *
- * It is a client component purely to read the pathname; it renders two divs and no
- * state, so there is nothing to hydrate beyond that.
+ * `ShellRoot` writes the current room's colour to `--room` on the outermost element,
+ * so the nav filament, the group dot, focus rings, the text caret, lit buttons and the
+ * ambient wash all change together. Everything transitions its own colour, so moving
+ * between rooms reads as the lighting changing rather than a page being swapped.
  */
-export function RoomAtmosphere({ slug }: { slug: string }) {
+export function ShellRoot({ slug, children }: { slug: string; children: ReactNode }) {
   const pathname = usePathname();
-  const room = ROOM_BY_KEY[roomFromPath(pathname, slug)];
+  const room = roomFromPath(pathname, slug);
 
   return (
     <div
-      className="app-atmos"
-      aria-hidden="true"
-      style={{ ["--room" as string]: room.accent }}
+      className="app-shell"
+      data-room={room}
+      style={{ ["--room" as string]: ROOM_BY_KEY[room].accent }}
     >
-      <i className="app-atmos-key" />
-      <i className="app-atmos-fill" />
+      <div className="app-atmos" aria-hidden="true">
+        <i className="app-atmos-key" />
+        <i className="app-atmos-fill" />
+        <i className="app-atmos-grain" />
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * The room-change entrance.
+ *
+ * Keyed on the pathname so it remounts on every navigation and replays its CSS
+ * entrance. The entrance is chosen by room (see `.stage[data-room]` in shell.css) and
+ * never delays interaction — content is live from the first frame.
+ */
+export function RoomStage({ slug, children }: { slug: string; children: ReactNode }) {
+  const pathname = usePathname();
+  const room = roomFromPath(pathname, slug);
+  const base = `/g/${slug}`;
+  const depth = pathname.slice(base.length).split("/").filter(Boolean).length;
+
+  return (
+    <div key={pathname} className="stage" data-room={room} data-depth={depth > 1 ? "detail" : "room"}>
+      {children}
     </div>
   );
 }

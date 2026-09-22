@@ -1,0 +1,399 @@
+/* ===========================================================================
+   HOME — the living room.
+   =========================================================================== */
+
+.home { display: grid; gap: clamp(2.5rem, 6vw, 4.5rem); }
+
+/* ---------------------------------------------------------------- the pulse */
+
+.home-hero {
+  position: relative;
+  display: grid;
+  align-items: end;
+  gap: 1.5rem 3rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "statement around"
+    "start around";
+}
+
+.home-statement {
+  grid-area: statement;
+  display: grid;
+  font-size: clamp(3.4rem, 10.5vw, 8.5rem);
+  line-height: 0.86;
+  letter-spacing: 0;
+}
+
+.home-statement span { display: block; }
+
+/* One line lit by whichever room the sentence is about. Solid colour, not a
+   gradient: the emphasis is the light, not a special effect on the letters. */
+.home-statement-lit {
+  color: var(--line-room);
+  text-shadow: 0 0 60px color-mix(in srgb, var(--line-room) 35%, transparent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .home-statement span { animation: rise 0.7s var(--ease-out) backwards; }
+  .home-statement span + span { animation-delay: 0.08s; }
+}
+
+@keyframes rise { from { opacity: 0; transform: translateY(0.25em); } }
+
+.home-start {
+  grid-area: start;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 1.1rem;
+  margin: 0;
+  color: var(--fg-3);
+  font-size: 0.9375rem;
+}
+
+.home-start-label { color: var(--fg-4); }
+
+.home-start a {
+  position: relative;
+  padding: 0.35rem 0;
+  color: var(--fg-2);
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.home-start a::after {
+  position: absolute;
+  right: 0;
+  bottom: 0.1rem;
+  left: 0;
+  height: 1px;
+  background: var(--room);
+  content: "";
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.3s var(--ease-out);
+}
+
+.home-start a:hover { color: var(--fg); }
+.home-start a:hover::after { transform: scaleX(1); }
+
+/* Who has been around: a loose cluster, most recent biggest and brightest. */
+.home-around {
+  grid-area: around;
+  display: grid;
+  justify-items: end;
+  gap: 0.9rem;
+  align-self: end;
+  color: var(--fg-3);
+  font-size: 0.8125rem;
+  text-align: right;
+}
+
+.home-around-faces {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+}
+
+/* One overlapping line, most recently around first and largest, fading out. */
+.home-face + .home-face { margin-left: -0.6rem; }
+.home-face { position: relative; z-index: calc(10 - var(--i)); }
+
+.home-face {
+  display: inline-flex;
+  border-radius: 50%;
+  transition: transform 0.3s var(--ease-out), opacity 0.3s ease, filter 0.3s ease;
+}
+
+.home-face[data-seen="false"] { opacity: 0.45; filter: saturate(0.4); }
+.home-face .avatar { box-shadow: 0 0 0 2px var(--ink-1), 0 8px 20px -8px rgba(0, 0, 0, 0.8); }
+
+@media (hover: hover) {
+  .home-around:hover .home-face { transform: translateY(-2px); }
+  .home-around:hover .home-face[data-seen="false"] { opacity: 0.8; }
+}
+
+.home-around-line { max-width: 16rem; line-height: 1.4; }
+
+@media (max-width: 860px) {
+  .home-hero { grid-template-columns: 1fr; grid-template-areas: "statement" "around" "start"; }
+  .home-around { justify-items: start; text-align: left; }
+  .home-around-faces { justify-content: flex-start; }
+}
+
+/* ---------------------------------------------------------------- body grid */
+
+.home-body {
+  display: grid;
+  gap: clamp(2rem, 4vw, 3.5rem) clamp(2rem, 4vw, 4rem);
+  grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
+  grid-template-areas:
+    "now lately"
+    "house house";
+}
+
+.home-now { grid-area: now; }
+.home-lately { grid-area: lately; }
+.home-house { grid-area: house; }
+
+@media (max-width: 960px) {
+  .home-body { grid-template-columns: 1fr; grid-template-areas: "now" "house" "lately"; }
+}
+
+/* ---------------------------------------------------------------- the one big thing */
+
+.now {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 1.1rem;
+  min-height: 100%;
+  padding: clamp(1.5rem, 3.5vw, 2.75rem);
+  border-radius: 24px;
+  background:
+    radial-gradient(70% 90% at 0% 0%, color-mix(in srgb, var(--room) 20%, transparent), transparent 65%),
+    linear-gradient(160deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 30px 60px -30px rgba(0, 0, 0, 0.7);
+  transition: transform 0.35s var(--ease-out), box-shadow 0.35s ease;
+}
+
+a.now:hover { transform: translateY(-3px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 40px 70px -30px rgba(0, 0, 0, 0.8); }
+a.now:active { transform: translateY(-1px) scale(0.995); }
+
+.now-where {
+  color: color-mix(in srgb, var(--room) 70%, white);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.12em;
+}
+
+.now-title { max-width: 16ch; font-size: clamp(2.6rem, 6vw, 4.75rem); }
+
+.now-quote { margin: 0.25rem 0 0; padding: 0; }
+.now-quote p {
+  margin: 0;
+  color: var(--fg);
+  font-size: clamp(1.1rem, 2vw, 1.35rem);
+  line-height: 1.4;
+  text-wrap: pretty;
+}
+.now-quote p::before { content: "“"; color: var(--room); }
+.now-quote p::after { content: "”"; color: var(--room); }
+.now-quote cite { display: block; margin-top: 0.5rem; color: var(--fg-3); font-size: 0.8125rem; font-style: normal; }
+
+.now-foot { display: flex; align-items: center; gap: 0.75rem; }
+
+/* The blockers, crooked while open and straight once answered — ALIGN's whole idea
+   previewed in three words. */
+.now-blockers { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 0.25rem 0; padding: 0; list-style: none; }
+
+.now-blockers li {
+  padding: 0.55rem 0.9rem 0.45rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  color: var(--fg-3);
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  transform: rotate(var(--t));
+  transition: transform 0.5s var(--ease-io);
+}
+
+.now-blockers li[data-open="true"] {
+  border-color: color-mix(in srgb, var(--room) 60%, transparent);
+  background: color-mix(in srgb, var(--room) 10%, transparent);
+  color: var(--fg);
+}
+
+a.now:hover .now-blockers li { transform: rotate(0deg); }
+
+.now-ticket-facts { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; }
+.now-ticket-facts .display { color: var(--room); font-size: clamp(1.8rem, 4vw, 2.6rem); }
+
+.now-quiet { background: rgba(255, 255, 255, 0.02); }
+
+/* ---------------------------------------------------------------- lately */
+
+.lately-list { display: grid; margin: 0; padding: 0; list-style: none; }
+
+.lately-list a {
+  display: grid;
+  align-items: baseline;
+  gap: 0.7rem;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--line);
+  grid-template-columns: 7px minmax(0, 1fr) auto;
+  transition: transform 0.25s var(--ease-out);
+}
+
+.lately-list li:last-child a { border-bottom: 0; }
+.lately-list a:hover { transform: translateX(0.3rem); }
+
+.lately-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--dot);
+  box-shadow: 0 0 8px var(--dot);
+  transform: translateY(-1px);
+}
+
+.lately-text { color: var(--fg-2); font-size: 0.9rem; line-height: 1.45; }
+.lately-text strong { color: var(--fg); font-weight: 600; }
+
+/* ---------------------------------------------------------------- the house
+
+   Objects, not boxes: a photograph, a ticket, a whisper, a work in progress. Each
+   carries its own room's material, so the section reads as the rooms themselves
+   poking through rather than a grid of summaries.
+   ------------------------------------------------------------------------- */
+
+.home-house {
+  display: grid;
+  align-items: start;
+  gap: clamp(1.25rem, 3vw, 2.25rem);
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+}
+
+.house-memory { grid-column: 1 / span 5; grid-row: span 2; display: grid; gap: 1rem; }
+.house-ticket { grid-column: 6 / span 4; }
+.house-whisper { grid-column: 10 / span 3; }
+.house-make { grid-column: 6 / span 7; }
+
+/* When a slot is missing the others widen instead of leaving a hole. */
+.home-house > :only-child { grid-column: 1 / -1; }
+
+@media (max-width: 960px) {
+  .home-house { grid-template-columns: 1fr 1fr; }
+  .house-memory { grid-column: 1 / -1; grid-row: auto; }
+  .house-ticket { grid-column: 1 / -1; }
+  .house-whisper, .house-make { grid-column: auto; }
+}
+
+@media (max-width: 560px) {
+  .home-house { grid-template-columns: 1fr; }
+  .house-whisper, .house-make { grid-column: 1 / -1; }
+}
+
+.house-memory-frame {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  aspect-ratio: 4 / 3;
+  border-radius: 6px;
+  background: #15111c;
+  box-shadow: 0 30px 60px -24px rgba(0, 0, 0, 0.85);
+}
+
+.house-memory-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.9s var(--ease-out), filter 0.6s ease;
+  filter: saturate(0.9) contrast(1.02);
+}
+
+.house-memory:hover .house-memory-frame img { transform: scale(1.03); filter: saturate(1.05); }
+
+/* No photo yet: a film leader — the day of the month, huge, like a contact sheet. */
+.house-memory-plate {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(60% 60% at 30% 30%, color-mix(in srgb, var(--room) 22%, transparent), transparent 70%),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 22px),
+    #140f1d;
+  color: color-mix(in srgb, var(--room) 60%, transparent);
+  font-family: var(--font-display);
+  font-size: clamp(6rem, 14vw, 11rem);
+  line-height: 1;
+}
+
+.house-memory-text { display: grid; gap: 0.35rem; }
+.house-memory-title { font-size: clamp(1.8rem, 3.5vw, 2.6rem); }
+
+/* ONE DAY's ticket, printed in its own colours and a little crooked. */
+.house-ticket {
+  display: grid;
+  overflow: hidden;
+  border-radius: 10px;
+  background:
+    radial-gradient(90% 120% at 0% 0%, color-mix(in srgb, var(--light) 28%, transparent), transparent 60%),
+    var(--ground);
+  color: var(--ink);
+  box-shadow: 0 24px 40px -20px rgba(0, 0, 0, 0.85), 0 2px 4px rgba(0, 0, 0, 0.3);
+  grid-template-columns: minmax(0, 1fr) auto;
+  transform: rotate(var(--t));
+  transition: transform 0.45s var(--ease-out);
+}
+
+.house-ticket:hover { transform: rotate(0deg) translateY(-4px); }
+
+.house-ticket-main { display: grid; align-content: start; gap: 0.6rem; padding: 1.25rem 1.25rem 1.4rem; }
+.house-ticket-kind { color: var(--light); font-family: var(--font-mono); font-size: 0.625rem; letter-spacing: 0.2em; }
+.house-ticket-title { font-size: clamp(1.8rem, 3vw, 2.4rem); }
+.house-ticket-note { opacity: 0.8; font-size: 0.8125rem; }
+
+.house-ticket-stub {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 0.2rem;
+  padding: 1rem 1.1rem;
+  border-left: 2px dashed color-mix(in srgb, var(--ink) 30%, transparent);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.18em;
+}
+
+.house-ticket-stub b { color: var(--light); font-size: 2.2rem; font-weight: 400; letter-spacing: 0.02em; }
+
+/* TEA's whisper: a sliver of the conversation, cut off mid-thought. */
+.house-whisper {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.25rem 0 0.25rem 1.1rem;
+  border-left: 1px solid color-mix(in srgb, var(--room) 70%, transparent);
+}
+
+.house-whisper-title { font-size: 1.7rem; }
+
+.house-whisper-last {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--fg-2);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  mask-image: linear-gradient(180deg, #000 60%, transparent);
+}
+
+.house-whisper-last b { color: var(--fg); font-weight: 600; }
+
+.house-make {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem 1.5rem;
+  padding: 1.1rem 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.house-make .now-where { flex-basis: 100%; }
+.house-make-title { font-size: clamp(1.7rem, 3vw, 2.3rem); transition: color 0.2s ease; }
+.house-make:hover .house-make-title { color: color-mix(in srgb, var(--room) 50%, white); }
+.house-make-crew { display: inline-flex; align-items: center; gap: 0.6rem; }
+
+/* ---------------------------------------------------------------- shared count */
+
+.count { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.7rem; }
+.count-num { font-family: var(--font-display); font-size: 1.5rem; letter-spacing: 0.04em; line-height: 1; color: var(--fg-3); }
+.count-num b { color: var(--fg); font-weight: 400; }
+.count-label { color: var(--fg-2); font-family: var(--font-display); font-size: 1.1rem; letter-spacing: 0.06em; }

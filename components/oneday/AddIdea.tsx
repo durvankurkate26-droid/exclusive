@@ -1,73 +1,79 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { addIdea, type FormState } from "@/lib/actions/rooms";
+import { Sheet } from "@/components/app/Sheet";
+import { Plus } from "@/components/app/Icons";
+import { toast } from "@/components/app/Toast";
 
 function Submit() {
   const { pending } = useFormStatus();
   return (
-    <button className="btn btn-primary" type="submit" disabled={pending}>
-      {pending ? "Pinning…" : "Put it up ↗"}
+    <button className="btn btn-lit" type="submit" disabled={pending}>
+      {pending ? "Pinning…" : "Put it on the wall"}
     </button>
   );
 }
 
 /**
- * Adding a someday.
- *
- * A title and one line, same as TEA. The whole premise of ONE DAY is that saying the
- * thing out loud costs nothing — a date field or a category picker would turn "we
- * should go to Goa" into a commitment, which is exactly what ALIGN is for and exactly
- * what this room is not.
+ * A someday in one line. The picture link is behind a disclosure — most ideas start
+ * as a sentence in the group chat, not a moodboard, and an empty image field makes
+ * a thought feel like homework.
  */
-export function AddIdea({ groupId, slug }: { groupId: string; slug: string }) {
-  const [open, setOpen] = useState(false);
+export function AddIdea({ groupId, slug, defaultOpen }: { groupId: string; slug: string; defaultOpen?: boolean }) {
   const [state, action] = useActionState<FormState, FormData>(addIdea, {});
+  const [withPicture, setWithPicture] = useState(false);
+  const closeRef = useRef<() => void>(() => {});
 
-  // The action stays on the page rather than redirecting, so the form has to close
-  // itself once the idea is on the wall.
   useEffect(() => {
-    if (state.message) setOpen(false);
-  }, [state.message]);
-
-  if (!open) {
-    return (
-      <button className="btn btn-primary" type="button" onClick={() => setOpen(true)}>
-        Add a someday ↗
-      </button>
-    );
-  }
+    if (state.message) {
+      closeRef.current();
+      toast("On the wall. Your hand's already up.");
+    }
+  }, [state]);
 
   return (
-    <form className="inline-form" action={action}>
-      <input type="hidden" name="group_id" value={groupId} />
-      <input type="hidden" name="slug" value={slug} />
-      <input
-        name="title"
-        placeholder="the thing we keep saying"
-        maxLength={120}
-        required
-        autoFocus
-        aria-label="The idea"
-      />
-      <input
-        name="description"
-        placeholder="why, or where, or with whom (optional)"
-        maxLength={280}
-        aria-label="Description"
-      />
-      <div className="inline-form-actions">
-        <Submit />
-        <button className="btn" type="button" onClick={() => setOpen(false)}>
-          Never mind
+    <Sheet
+      title="One day we should…"
+      defaultOpen={defaultOpen}
+      trigger={(open) => (
+        <button className="btn btn-lit" type="button" onClick={open}>
+          <Plus width={16} height={16} /> Add a someday
         </button>
-      </div>
-      {state.error && (
-        <p className="inline-form-error" role="alert">
-          {state.error}
-        </p>
       )}
-    </form>
+    >
+      {(close) => {
+        closeRef.current = close;
+        return (
+          <form action={action} className="field" style={{ gap: "1.25rem" }}>
+            <input type="hidden" name="group_id" value={groupId} />
+            <input type="hidden" name="slug" value={slug} />
+            <label className="sr-only" htmlFor="idea-title">The idea</label>
+            <input id="idea-title" className="input input-title" name="title" placeholder="Drive to Goa without telling anyone" maxLength={120} required autoFocus />
+            <div className="field">
+              <label className="field-label" htmlFor="idea-desc">Why, where, with whom <span className="field-hint">optional</span></label>
+              <textarea id="idea-desc" className="textarea" name="description" maxLength={280} rows={2} placeholder="Leave Friday night. Come back when we come back." />
+            </div>
+            {withPicture ? (
+              <div className="field">
+                <label className="field-label" htmlFor="idea-image">Picture link</label>
+                <input id="idea-image" className="input" name="image_url" type="url" inputMode="url" placeholder="https://…" />
+                <span className="field-hint">A photo of the place, the poster, the vibe.</span>
+              </div>
+            ) : (
+              <button className="go go-quiet" type="button" onClick={() => setWithPicture(true)} style={{ justifySelf: "start" }}>
+                + Add a picture link
+              </button>
+            )}
+            {state.error && <p className="form-error" role="alert">{state.error}</p>}
+            <div className="sheet-actions">
+              <button className="btn btn-ghost" type="button" onClick={close}>Never mind</button>
+              <Submit />
+            </div>
+          </form>
+        );
+      }}
+    </Sheet>
   );
 }

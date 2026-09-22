@@ -26,8 +26,12 @@ export async function addIdea(_prev: FormState, formData: FormData): Promise<For
   const slug = String(formData.get("slug") ?? "");
   const title = String(formData.get("title") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
+  const imageUrl = String(formData.get("image_url") ?? "").trim();
 
   if (!title) return { error: "What is it? Two words is fine." };
+  if (imageUrl && !/^https:\/\//i.test(imageUrl)) {
+    return { error: "The picture link needs to start with https://" };
+  }
 
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -37,6 +41,7 @@ export async function addIdea(_prev: FormState, formData: FormData): Promise<For
       created_by: user.id,
       title,
       description: description || null,
+      image_url: imageUrl || null,
     })
     .select("id")
     .single();
@@ -463,4 +468,42 @@ export async function captureToVault(planId: string, slug: string): Promise<Form
   revalidatePath(`/g/${slug}/align`);
   revalidatePath(`/g/${slug}/vault`);
   redirect(`/g/${slug}/vault/${capsule.id}`);
+}
+
+/**
+ * CREATE's ending: posted, with a link to the finished thing — or simply done, for
+ * the shoots that were never meant for the internet. `result_url` arrives with
+ * migration 0006; until it runs, posting still works and the link is reported as
+ * waiting on the migration rather than failing silently.
+ */
+export async function finishCreation(
+  createId: string,
+  slug: string,
+  outcome: "posted" | "completed",
+  resultUrl: string,
+): Promise<FormState> {
+  const link = resultUrl.trim();
+  if (link && !/^https?:\/\//i.test(link)) return { error: "That link needs to start with http." };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("create_ideas")
+    .update(link ? { status: outcome, result_url: link } : { status: outcome })
+    .eq("id", createId);
+
+  if (error) {
+    // PGRST204: the column is not in PostgREST's schema cache — 0006 has not been applied.
+    if (error.code === "PGRST204" || /result_url/.test(error.message)) {
+      const { error: retry } = await supabase.from("create_ideas").update({ status: outcome }).eq("id", createId);
+      if (retry) return { error: retry.message };
+      revalidatePath(`/g/${slug}/create`);
+      revalidatePath(`/g/${slug}/create/${createId}`);
+      return { message: "Marked as done. The link needs migration 0006 (npm run db:push) before it can be saved." };
+    }
+    return { error: error.message };
+  }
+
+  revalidatePath(`/g/${slug}/create`);
+  revalidatePath(`/g/${slug}/create/${createId}`);
+  return { message: "We somehow made it." };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useOptimistic, useState, useTransition } from "react";
+import { useActionState, useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 import {
   addMemoryNote,
@@ -11,14 +11,14 @@ import {
   type FormState,
 } from "@/lib/actions/vault";
 import { Avatar } from "@/components/app/Avatar";
+import { Close } from "@/components/app/Icons";
+import { Sheet } from "@/components/app/Sheet";
+import { toast } from "@/components/app/Toast";
+import { firstName, type Person } from "@/components/app/People";
 
 /**
- * Who was there.
- *
- * Every member of the group is shown, tagged or not, and tapping a face toggles it.
- * This is not an invite list — everyone can already see the capsule — it is the
- * record of who was in the room that night, which is the thing people actually argue
- * about years later.
+ * Who was there. Tap a face to tag or untag it; the change is optimistic, and its
+ * base is the server prop, so someone else's tagging arrives on the next render.
  */
 export function ParticipantPicker({
   capsuleId,
@@ -28,14 +28,10 @@ export function ParticipantPicker({
 }: {
   capsuleId: string;
   slug: string;
-  members: Array<{ id: string; name: string; url: string | null }>;
+  members: Person[];
   taggedIds: string[];
 }) {
-  const [pending, startTransition] = useTransition();
-  // useOptimistic rather than useState: its base is the prop, so when somebody else
-  // tags a face and the page revalidates, this picker picks the change up. A
-  // useState initialised from props would keep showing the list as it was when the
-  // component mounted.
+  const [, startTransition] = useTransition();
   const [tagged, setTagged] = useOptimistic(taggedIds, (_current, next: string[]) => next);
 
   return (
@@ -49,20 +45,16 @@ export function ParticipantPicker({
               className="tagger-face"
               data-on={on}
               aria-pressed={on}
-              disabled={pending}
               onClick={() =>
                 startTransition(async () => {
-                  setTagged(
-                    on
-                      ? tagged.filter((id) => id !== member.id)
-                      : [...tagged, member.id],
-                  );
-                  await toggleCapsuleParticipant(capsuleId, member.id, slug);
+                  setTagged(on ? tagged.filter((id) => id !== member.id) : [...tagged, member.id]);
+                  const result = await toggleCapsuleParticipant(capsuleId, member.id, slug);
+                  if (result.error) toast(result.error, "error");
                 })
               }
             >
-              <Avatar url={member.url} name={member.name} size={44} />
-              <span>{member.name.split(" ")[0]}</span>
+              <Avatar url={member.url} name={member.name} size={48} />
+              <span>{firstName(member.name)}</span>
             </button>
           </li>
         );
@@ -74,74 +66,51 @@ export function ParticipantPicker({
 function NoteSubmit() {
   const { pending } = useFormStatus();
   return (
-    <button className="btn btn-room" type="submit" disabled={pending}>
-      {pending ? "…" : "Add it"}
+    <button className="btn btn-sm" type="submit" disabled={pending}>
+      {pending ? "…" : "Keep it"}
     </button>
   );
 }
 
-/**
- * Notes and quotes.
- *
- * Short, 500 characters, and rendered as pull-quotes rather than comments. What gets
- * written here is "you said you'd never do that again" — a fragment, not a thread —
- * and treating it typographically as a quote is what keeps VAULT from becoming a
- * comment section under a photo album.
- */
-export function NoteComposer({
-  capsuleId,
-  slug,
-}: {
-  capsuleId: string;
-  slug: string;
-}) {
+/** "Something somebody said." One line, kept forever. */
+export function NoteComposer({ capsuleId, slug }: { capsuleId: string; slug: string }) {
   const [state, action] = useActionState<FormState, FormData>(addMemoryNote, {});
+  const formRef = useRef<HTMLFormElement>(null);
+  const submitted = useRef(false);
+
+  useEffect(() => {
+    if (submitted.current && !state.error) formRef.current?.reset();
+    submitted.current = false;
+  }, [state]);
 
   return (
-    <form className="note-form" action={action}>
+    <form ref={formRef} className="note-form" action={action} onSubmit={() => (submitted.current = true)}>
       <input type="hidden" name="capsule_id" value={capsuleId} />
       <input type="hidden" name="slug" value={slug} />
-      <textarea
-        name="note"
-        placeholder="something somebody said…"
-        maxLength={500}
-        rows={2}
-        required
-        aria-label="A note or a quote"
-      />
+      <label className="sr-only" htmlFor="note">A line somebody said</label>
+      <input id="note" className="input" name="note" placeholder="Something somebody said…" maxLength={500} required />
       <NoteSubmit />
-      {state.error && (
-        <p className="inline-form-error" role="alert">
-          {state.error}
-        </p>
-      )}
+      {state.error && <p className="form-error" role="alert">{state.error}</p>}
     </form>
   );
 }
 
-export function DeleteNote({
-  noteId,
-  capsuleId,
-  slug,
-}: {
-  noteId: string;
-  capsuleId: string;
-  slug: string;
-}) {
+export function DeleteNote({ noteId, capsuleId, slug }: { noteId: string; capsuleId: string; slug: string }) {
   const [pending, startTransition] = useTransition();
   return (
     <button
       className="note-delete"
       type="button"
-      aria-label="Delete this note"
+      aria-label="Delete this line"
       disabled={pending}
       onClick={() =>
         startTransition(async () => {
-          await deleteMemoryNote(noteId, capsuleId, slug);
+          const result = await deleteMemoryNote(noteId, capsuleId, slug);
+          if (result.error) toast(result.error, "error");
         })
       }
     >
-      ×
+      <Close width={14} height={14} />
     </button>
   );
 }
@@ -149,19 +118,13 @@ export function DeleteNote({
 function EditSubmit() {
   const { pending } = useFormStatus();
   return (
-    <button className="btn btn-primary" type="submit" disabled={pending}>
+    <button className="btn btn-lit" type="submit" disabled={pending}>
       {pending ? "Saving…" : "Save"}
     </button>
   );
 }
 
-/**
- * Editing the capsule, and deleting it.
- *
- * Delete is typed-confirmation rather than a second "are you sure": this removes
- * every photograph in the memory from storage permanently, and a group's photographs
- * are the one thing in this product that cannot be recreated by typing it again.
- */
+/** Rename, re-date, re-describe — and, for its keeper or an admin, delete. */
 export function CapsuleAdmin({
   capsuleId,
   slug,
@@ -179,104 +142,86 @@ export function CapsuleAdmin({
   photoCount: number;
   canDelete: boolean;
 }) {
-  const [open, setOpen] = useState(false);
   const [confirm, setConfirm] = useState("");
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
   const [state, action] = useActionState<FormState, FormData>(updateCapsule, {});
 
-  if (!open) {
-    return (
-      <button className="capsule-edit" type="button" onClick={() => setOpen(true)}>
-        Edit this memory
-      </button>
-    );
-  }
+  useEffect(() => {
+    if (state.message) toast("Saved.");
+  }, [state]);
 
   return (
-    <div className="capsule-admin">
-      <form className="inline-form" action={action}>
-        <input type="hidden" name="capsule_id" value={capsuleId} />
-        <input type="hidden" name="slug" value={slug} />
-        <input
-          name="title"
-          defaultValue={title}
-          maxLength={120}
-          required
-          aria-label="Title"
-        />
-        <input
-          name="memory_date"
-          type="date"
-          defaultValue={memoryDate ?? ""}
-          aria-label="When it happened"
-        />
-        <textarea
-          name="description"
-          defaultValue={description ?? ""}
-          maxLength={600}
-          rows={2}
-          placeholder="set the scene"
-          aria-label="Description"
-        />
-        <div className="inline-form-actions">
-          <EditSubmit />
-          <button className="btn" type="button" onClick={() => setOpen(false)}>
-            Done
-          </button>
-        </div>
-        {state.error && (
-          <p className="inline-form-error" role="alert">
-            {state.error}
-          </p>
-        )}
-        {state.message && <p className="uploader-done">{state.message}</p>}
-      </form>
+    <Sheet
+      title="Edit this memory"
+      trigger={(open) => (
+        <button className="btn btn-ghost btn-sm" type="button" onClick={open}>
+          Edit
+        </button>
+      )}
+    >
+      {(close) => (
+        <div className="field" style={{ gap: "1.5rem" }}>
+          <form action={action} className="field" style={{ gap: "1rem" }}>
+            <input type="hidden" name="capsule_id" value={capsuleId} />
+            <input type="hidden" name="slug" value={slug} />
+            <label className="sr-only" htmlFor="edit-title">Title</label>
+            <input id="edit-title" className="input input-title" name="title" defaultValue={title} maxLength={120} required />
+            <div className="field">
+              <label className="field-label" htmlFor="edit-date">When</label>
+              <input id="edit-date" className="input" name="memory_date" type="date" defaultValue={memoryDate ?? ""} />
+            </div>
+            <div className="field">
+              <label className="field-label" htmlFor="edit-desc">The scene</label>
+              <textarea id="edit-desc" className="textarea" name="description" defaultValue={description ?? ""} maxLength={600} rows={3} />
+            </div>
+            {state.error && <p className="form-error" role="alert">{state.error}</p>}
+            <div className="sheet-actions">
+              <button className="btn btn-ghost" type="button" onClick={close}>Done</button>
+              <EditSubmit />
+            </div>
+          </form>
 
-      {canDelete && (
-        <div className="danger">
-          <p className="danger-line">
-            Deleting this removes{" "}
-            <strong>
-              {photoCount} {photoCount === 1 ? "photograph" : "photographs"}
-            </strong>{" "}
-            from storage. There is no undo.
-          </p>
-          <div className="danger-row">
-            <input
-              value={confirm}
-              onChange={(event) => setConfirm(event.target.value)}
-              placeholder="type DELETE"
-              aria-label="Type DELETE to confirm"
-            />
-            <button
-              className="btn danger-btn"
-              type="button"
-              disabled={confirm !== "DELETE" || pending}
-              onClick={() =>
-                startTransition(async () => {
-                  try {
-                    await deleteCapsule(capsuleId, slug);
-                  } catch (cause) {
-                    // A redirect throws by design; anything else is a real failure.
-                    if (cause instanceof Error && cause.message.includes("NEXT_REDIRECT")) {
-                      throw cause;
-                    }
-                    setError("Could not delete this memory.");
+          {canDelete && (
+            <div className="danger">
+              <p className="danger-line">
+                Deleting removes{" "}
+                <strong>
+                  {photoCount} {photoCount === 1 ? "photo" : "photos"}
+                </strong>{" "}
+                from storage for everyone. There is no undo.
+              </p>
+              <div className="form-row">
+                <label className="sr-only" htmlFor="confirm-delete">Type DELETE to confirm</label>
+                <input
+                  id="confirm-delete"
+                  className="input"
+                  value={confirm}
+                  onChange={(event) => setConfirm(event.target.value)}
+                  placeholder="Type DELETE"
+                  style={{ flex: "1 1 10rem" }}
+                />
+                <button
+                  className="btn btn-danger"
+                  type="button"
+                  disabled={confirm !== "DELETE" || pending}
+                  onClick={() =>
+                    startTransition(async () => {
+                      try {
+                        await deleteCapsule(capsuleId, slug);
+                      } catch (cause) {
+                        if (cause instanceof Error && cause.message.includes("NEXT_REDIRECT")) throw cause;
+                        toast("Couldn't delete this memory. Try again.", "error");
+                      }
+                    })
                   }
-                })
-              }
-            >
-              {pending ? "Deleting…" : "Delete this memory"}
-            </button>
-          </div>
-          {error && (
-            <p className="inline-form-error" role="alert">
-              {error}
-            </p>
+                >
+                  {pending ? "Deleting…" : "Delete memory"}
+                </button>
+              </div>
+            </div>
           )}
         </div>
       )}
-    </div>
+    </Sheet>
   );
 }

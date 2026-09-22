@@ -1,0 +1,283 @@
+/* ===========================================================================
+   ONE DAY — a pinboard of futures.
+
+   Printed objects on a dark wall: each idea has its own ground, light and ink
+   (from lib/art.ts), its own format, and a small tilt. The room's own cyan is only
+   the wall light; the colour lives in the prints.
+   =========================================================================== */
+
+.oneday { display: grid; gap: clamp(2rem, 5vw, 3.5rem); }
+
+.oneday-title { font-size: clamp(3.4rem, 10vw, 7rem); }
+.oneday-title span { color: var(--fg-3); }
+
+/* ---------------------------------------------------------------- an idea */
+
+.idea {
+  --pad: clamp(1.1rem, 2.5vw, 1.6rem);
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 0.9rem;
+  transform: rotate(var(--t));
+  transition: transform 0.5s var(--ease-out);
+}
+
+.idea:hover,
+.idea:focus-within { transform: rotate(0deg) translateY(-4px); z-index: 2; }
+
+.idea-object {
+  position: relative;
+  display: grid;
+  overflow: hidden;
+  border-radius: 6px;
+  background:
+    radial-gradient(90% 70% at 10% 0%, color-mix(in srgb, var(--light) 30%, transparent), transparent 65%),
+    var(--ground);
+  color: var(--ink);
+  box-shadow:
+    0 30px 50px -28px rgba(0, 0, 0, 0.9),
+    0 2px 6px rgba(0, 0, 0, 0.35),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+/* A pin. Every print on a wall is held up by something. */
+.idea-object::before {
+  position: absolute;
+  z-index: 3;
+  top: 0.6rem;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #fff, var(--light) 45%, color-mix(in srgb, var(--light) 50%, black));
+  box-shadow: 0 3px 4px rgba(0, 0, 0, 0.5);
+  content: "";
+}
+
+.idea-print { position: relative; z-index: 1; display: grid; align-content: start; gap: 0.6rem; padding: var(--pad); }
+.idea-title { font-size: clamp(1.9rem, 3.2vw, 2.6rem); line-height: 0.92; }
+.idea-desc { max-width: 36ch; opacity: 0.82; font-size: 0.875rem; line-height: 1.45; }
+.idea-by { opacity: 0.62; font-family: var(--font-mono); font-size: 0.625rem; letter-spacing: 0.1em; text-transform: uppercase; }
+
+.idea-photo { position: relative; display: block; overflow: hidden; aspect-ratio: 4 / 3; background: color-mix(in srgb, var(--ground) 70%, black); }
+.idea-photo img { width: 100%; height: 100%; object-fit: cover; }
+.idea-photo-empty { display: grid; height: 100%; place-items: center; color: var(--light); font-family: var(--font-display); font-size: 6rem; opacity: 0.5; }
+
+/* Momentum: the print gets a stamp. */
+.idea-ready {
+  position: absolute;
+  z-index: 2;
+  right: 0.8rem;
+  bottom: 0.8rem;
+  padding: 0.35rem 0.6rem 0.25rem;
+  border: 2px solid var(--light);
+  border-radius: 4px;
+  color: var(--light);
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  letter-spacing: 0.08em;
+  transform: rotate(-4deg);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .idea[data-ready="true"] .idea-ready { animation: stamp 0.55s var(--ease-io) backwards 0.3s; }
+}
+
+.idea-controls { position: relative; z-index: 1; }
+
+/* ---------------------------------------------------------------- formats */
+
+/* POSTER — tall, type-led, the headline act. */
+.idea[data-format="poster"] .idea-object { min-height: clamp(24rem, 52vh, 34rem); align-content: end; }
+.idea[data-format="poster"] .idea-photo { position: absolute; inset: 0; aspect-ratio: auto; }
+.idea[data-format="poster"] .idea-photo[data-has-image="true"]::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(0deg, color-mix(in srgb, var(--ground) 95%, transparent) 10%, transparent 70%);
+  content: "";
+}
+.idea[data-format="poster"] .idea-print { padding: clamp(1.5rem, 4vw, 2.5rem); }
+.idea[data-format="poster"] .idea-title { font-size: clamp(3.2rem, 8vw, 6.25rem); line-height: 0.86; }
+.idea[data-format="poster"] .idea-desc { font-size: 1rem; }
+
+/* Big faint numerals behind the poster headline — a gig poster's date slot. */
+.idea[data-format="poster"] .idea-object::after {
+  position: absolute;
+  top: -0.1em;
+  right: 0.05em;
+  color: color-mix(in srgb, var(--light) 16%, transparent);
+  content: "ONE DAY";
+  font-family: var(--font-display);
+  font-size: clamp(5rem, 14vw, 10rem);
+  line-height: 1;
+  writing-mode: vertical-rl;
+}
+
+/* TICKET — landscape with a perforated stub. */
+.idea[data-format="ticket"] .idea-object { grid-template-columns: minmax(0, 1fr) auto; }
+.idea[data-format="ticket"] .idea-object::before { left: 1.2rem; }
+.idea-admit { color: var(--light); font-family: var(--font-mono); font-size: 0.5625rem; letter-spacing: 0.24em; }
+
+.idea-stub {
+  position: relative;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  padding: 0 1.1rem;
+  border-left: 2px dashed color-mix(in srgb, var(--ink) 30%, transparent);
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  letter-spacing: 0.2em;
+}
+
+/* The notches where a ticket tears. */
+.idea-stub::before,
+.idea-stub::after {
+  position: absolute;
+  left: -9px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--ink-1);
+  content: "";
+}
+.idea-stub::before { top: -8px; }
+.idea-stub::after { bottom: -8px; }
+.idea-stub b { color: var(--light); font-size: 2rem; font-weight: 400; letter-spacing: 0.02em; }
+
+/* POSTCARD — landscape, with the tally as the stamp. */
+.idea[data-format="postcard"] .idea-object { min-height: 12rem; }
+.idea[data-format="postcard"] .idea-print { padding-right: 6.5rem; }
+.idea[data-format="postcard"] .idea-object {
+  background:
+    repeating-linear-gradient(0deg, transparent 0 27px, color-mix(in srgb, var(--ink) 7%, transparent) 27px 28px),
+    radial-gradient(90% 70% at 10% 0%, color-mix(in srgb, var(--light) 26%, transparent), transparent 65%),
+    var(--ground);
+}
+
+.idea-stamp {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  display: grid;
+  width: 4.5rem;
+  height: 5.25rem;
+  align-content: center;
+  justify-items: center;
+  border: 2px dotted color-mix(in srgb, var(--ink) 45%, transparent);
+  background: color-mix(in srgb, var(--light) 18%, transparent);
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  letter-spacing: 0.08em;
+  transform: rotate(3deg);
+}
+.idea-stamp b { color: var(--light); font-size: 2.2rem; font-weight: 400; line-height: 0.9; }
+
+/* POLAROID — photo on top, a written strip underneath. */
+.idea[data-format="polaroid"] .idea-object { padding: 0.7rem 0.7rem 0; background: #efe9df; color: #1a1422; }
+.idea[data-format="polaroid"] .idea-object::before { top: -3px; }
+.idea[data-format="polaroid"] .idea-photo { border-radius: 2px; }
+.idea[data-format="polaroid"] .idea-print { padding: 0.9rem 0.3rem 1.2rem; }
+.idea[data-format="polaroid"] .idea-ready { border-color: #1a1422; color: #1a1422; }
+
+/* ---------------------------------------------------------------- the wall */
+
+.wall-lead {
+  display: grid;
+  align-items: center;
+  gap: clamp(1.5rem, 4vw, 4rem);
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+}
+
+.wall-lead-side { display: grid; justify-items: start; gap: 1.25rem; }
+.wall-lead-line { font-size: clamp(2rem, 4.5vw, 3.2rem); line-height: 0.95; }
+
+@media (max-width: 860px) { .wall-lead { grid-template-columns: 1fr; } }
+
+.wall {
+  columns: 3 18rem;
+  column-gap: clamp(1.5rem, 3.5vw, 2.75rem);
+}
+
+.wall > .idea {
+  display: inline-grid;
+  width: 100%;
+  margin: 0 0 clamp(2rem, 4.5vw, 3rem);
+  break-inside: avoid;
+}
+
+/* ---------------------------------------------------------------- the hand */
+
+.hand-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1rem; }
+.hand-row[data-compact="true"] .hand { min-height: 2.5rem; font-size: 0.95rem; }
+.hand-row[data-compact="true"] .hand-mark { width: 1.65rem; height: 1.65rem; }
+
+.hand-people { display: inline-flex; align-items: center; gap: 0.65rem; }
+.hand-faces { display: inline-flex; }
+.hand-face { display: inline-flex; border-radius: 50%; }
+.hand-face + .hand-face { margin-left: -0.55rem; }
+.hand-face .avatar { box-shadow: 0 0 0 2px var(--ink-1); }
+
+/* Your face dropping into the row. */
+@media (prefers-reduced-motion: no-preference) {
+  .hand-face[data-joining="true"] { animation: join 0.55s var(--ease-drawer); }
+}
+
+@keyframes join {
+  0% { opacity: 0; transform: translate(-2.5rem, -0.6rem) scale(0.6); }
+  60% { opacity: 1; transform: translate(0, 0) scale(1.12); }
+  100% { transform: scale(1); }
+}
+
+.hand-count { color: var(--fg-3); font-size: 1.3rem; letter-spacing: 0.04em; }
+.hand-count b { color: var(--fg); font-weight: 400; }
+
+.make-real { min-height: 3.1rem; padding: 0 1.5rem; font-size: 1rem; }
+
+.make-real-faces { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 0; padding: 0; list-style: none; }
+.make-real-faces li { display: grid; justify-items: center; gap: 0.3rem; color: var(--fg-2); font-size: 0.75rem; animation: land 0.4s var(--ease-out) backwards; }
+.make-real-faces li:nth-child(2) { animation-delay: 40ms; }
+.make-real-faces li:nth-child(3) { animation-delay: 80ms; }
+.make-real-faces li:nth-child(4) { animation-delay: 120ms; }
+.make-real-faces li:nth-child(n + 5) { animation-delay: 160ms; }
+
+/* ---------------------------------------------------------------- promoted */
+
+.oneday-done ul { margin: 0; padding: 0; list-style: none; }
+.oneday-done a {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.9rem 0;
+  border-top: 1px solid var(--line);
+  color: var(--fg-3);
+  transition: color 0.2s ease;
+}
+.oneday-done a:hover { color: var(--fg); }
+.oneday-done .display { font-size: 1.6rem; }
+.oneday-done-stamp { color: var(--room); font-family: var(--font-mono); font-size: 0.625rem; letter-spacing: 0.16em; }
+
+/* ---------------------------------------------------------------- detail */
+
+.idea-detail-grid {
+  display: grid;
+  align-items: start;
+  gap: clamp(2rem, 5vw, 4.5rem);
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+}
+
+@media (max-width: 860px) { .idea-detail-grid { grid-template-columns: 1fr; } }
+
+.idea-detail-side { display: grid; justify-items: start; gap: 1.4rem; padding-top: 1rem; }
+.idea-detail-line,
+.idea-left-line { font-size: clamp(2.2rem, 5vw, 3.5rem); line-height: 0.95; }
+.idea-left { display: grid; justify-items: start; gap: 1rem; }
+
+.idea-quiet { display: grid; gap: 0.75rem; width: 100%; padding-top: 1.25rem; border-top: 1px solid var(--line); }
+.idea-quiet ul { display: flex; flex-wrap: wrap; gap: 0.6rem 0.9rem; margin: 0; padding: 0; list-style: none; }
+.idea-quiet li { display: grid; justify-items: center; gap: 0.25rem; color: var(--fg-3); font-size: 0.75rem; }
+.idea-quiet .avatar { opacity: 0.6; filter: grayscale(0.6); }

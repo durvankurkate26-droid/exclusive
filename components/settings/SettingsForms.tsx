@@ -15,7 +15,7 @@ import type { Role } from "@/lib/supabase/database.types";
 function Save({ label = "Save" }: { label?: string }) {
   const { pending } = useFormStatus();
   return (
-    <button className="btn btn-primary" type="submit" disabled={pending}>
+    <button className="btn btn-lit" type="submit" disabled={pending}>
       {pending ? "Saving…" : label}
     </button>
   );
@@ -24,12 +24,12 @@ function Save({ label = "Save" }: { label?: string }) {
 function Feedback({ state }: { state: FormState }) {
   if (state.error) {
     return (
-      <p className="inline-form-error" role="alert">
+      <p className="form-error" role="alert">
         {state.error}
       </p>
     );
   }
-  if (state.message) return <p className="uploader-done">{state.message}</p>;
+  if (state.message) return <p className="form-ok" role="status">{state.message}</p>;
   return null;
 }
 
@@ -210,7 +210,7 @@ export function DangerZone({
             You own {groupName}. Owners can&apos;t leave — deleting is the only exit, and
             it takes every message, plan and photograph with it.
           </p>
-          <div className="danger-row">
+          <div className="form-row">
             <input
               value={confirm}
               onChange={(event) => setConfirm(event.target.value)}
@@ -218,7 +218,7 @@ export function DangerZone({
               aria-label={`Type ${groupName} to confirm deletion`}
             />
             <button
-              className="btn danger-btn"
+              className="btn btn-danger"
               type="button"
               disabled={confirm !== groupName || pending}
               onClick={() => run(() => deleteGroup(groupId))}
@@ -232,9 +232,9 @@ export function DangerZone({
           <p className="danger-line">
             Leave {groupName}? You&apos;ll need the invite code to get back in.
           </p>
-          <div className="inline-form-actions">
+          <div className="form-row">
             <button
-              className="btn danger-btn"
+              className="btn btn-danger"
               type="button"
               disabled={pending}
               onClick={() => run(() => leaveGroup(groupId))}
@@ -256,7 +256,7 @@ export function DangerZone({
       )}
 
       {error && (
-        <p className="inline-form-error" role="alert">
+        <p className="form-error" role="alert">
           {error}
         </p>
       )}

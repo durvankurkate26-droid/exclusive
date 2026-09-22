@@ -2,120 +2,144 @@
 
 import { useOptimistic, useState, useTransition } from "react";
 import { makeThisReal, toggleInterest } from "@/lib/actions/rooms";
+import { Avatar } from "@/components/app/Avatar";
+import { Check, Plus } from "@/components/app/Icons";
+import { Sheet } from "@/components/app/Sheet";
+import { flash, toast } from "@/components/app/Toast";
+import { firstName, type Person } from "@/components/app/People";
 
 /**
- * "I'm in."
+ * "I'm in" — the hand going up.
  *
- * Optimistic, because raising your hand should feel like raising your hand. The
- * server is authoritative on the next render; if it disagrees the count simply
- * corrects itself, which is a better failure than a button that sits there thinking
- * while you wonder whether it registered.
+ * The button and the faces are one component so the feedback can be physical: press
+ * it and *your* face drops into the row of people who are in, before the server has
+ * answered. `6 / 9 ARE IN` updates with it. Take it back and your face lifts out.
  */
-export function InterestButton({
+export function IdeaHand({
   ideaId,
   slug,
-  mine,
-  count,
+  me,
+  people,
   total,
+  compact = false,
 }: {
   ideaId: string;
   slug: string;
-  mine: boolean;
-  count: number;
+  me: Person;
+  people: Person[];
   total: number;
+  compact?: boolean;
 }) {
-  const [pending, startTransition] = useTransition();
-  const [state, setState] = useOptimistic(
-    { mine, count },
-    (_current, next: { mine: boolean; count: number }) => next,
+  const [, startTransition] = useTransition();
+  const [joined, setJoined] = useState<string | null>(null);
+  const [view, setView] = useOptimistic(people, (current, add: boolean) =>
+    add ? [...current.filter((p) => p.id !== me.id), me] : current.filter((p) => p.id !== me.id),
   );
+  const mine = view.some((p) => p.id === me.id);
 
-  const toggle = () =>
+  const toggle = () => {
+    // Outside the transition: this flag drives the drop-in animation and must commit
+    // with the optimistic face, not after the server answers.
+    setJoined(mine ? null : me.id);
     startTransition(async () => {
-      setState({ mine: !state.mine, count: state.count + (state.mine ? -1 : 1) });
-      await toggleInterest(ideaId, slug);
+      setView(!mine);
+      const result = await toggleInterest(ideaId, slug);
+      if (result.error) toast(result.error, "error");
     });
+  };
+
+  const shown = view.slice(-(compact ? 5 : 8));
 
   return (
-    <button
-      className="hands"
-      type="button"
-      onClick={toggle}
-      disabled={pending}
-      data-mine={state.mine}
-      aria-pressed={state.mine}
-    >
-      <span className="hands-mark" aria-hidden="true">
-        {state.mine ? "✓" : "+"}
-      </span>
-      <span className="hands-label">
-        {state.mine ? "you're in" : "I'm in"}
-        <span className="hands-count">
-          {state.count}/{total}
+    <div className="hand-row" data-compact={compact}>
+      <button className="hand" type="button" aria-pressed={mine} onClick={toggle}>
+        <span className="hand-mark" aria-hidden="true">
+          {mine ? <Check /> : <Plus />}
         </span>
+        {mine ? "You're in" : "I'm in"}
+      </button>
+      <span className="hand-people" aria-live="polite">
+        <span className="hand-faces" aria-hidden="true">
+          {shown.map((p) => (
+            <span key={p.id} className="hand-face" data-joining={p.id === joined} title={p.name}>
+              <Avatar url={p.url} name={p.name} size={compact ? 26 : 32} />
+            </span>
+          ))}
+        </span>
+        <span className="hand-count display">
+          <b>{view.length}</b>/{total} {compact ? "" : "are in"}
+        </span>
+        <span className="sr-only">{view.map((p) => firstName(p.name)).join(", ")}</span>
       </span>
-    </button>
+    </div>
   );
 }
 
 /**
- * ONE DAY -> ALIGN.
- *
- * Confirms first. This is the one button in the room that changes what the idea *is*
- * — it leaves the wall and becomes a plan with a date attached — and the RPC carries
- * everyone's raised hand across with it, so it is not an action to fire by accident.
+ * ONE DAY → ALIGN, and the one moment in this room allowed to feel like an event.
+ * The confirm sheet says exactly what will happen — who comes along — and the toast
+ * on the other side is the room admitting defeat: "Fine. We're actually doing this."
  */
 export function MakeThisReal({
   ideaId,
   slug,
-  count,
+  title,
+  people,
 }: {
   ideaId: string;
   slug: string;
-  count: number;
+  title: string;
+  people: Person[];
 }) {
-  const [confirming, setConfirming] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
   const go = () =>
     startTransition(async () => {
+      flash("Fine. We're actually doing this.");
       const result = await makeThisReal(ideaId, slug);
       if (result?.error) {
+        try {
+          sessionStorage.removeItem("exclusive:flash");
+        } catch {}
         setError(result.error);
-        setConfirming(false);
       }
     });
 
-  if (!confirming) {
-    return (
-      <div className="make-real">
-        <button className="btn btn-room" type="button" onClick={() => setConfirming(true)}>
-          Make this real ↗
-        </button>
-        {error && (
-          <p className="inline-form-error" role="alert">
-            {error}
-          </p>
-        )}
-      </div>
-    );
-  }
-
   return (
-    <div className="make-real is-confirming">
-      <p className="make-real-line">
-        This moves it into ALIGN and brings{" "}
-        {count === 1 ? "the one person" : `all ${count} people`} who said they&apos;re in.
-      </p>
-      <div className="inline-form-actions">
-        <button className="btn btn-primary" type="button" onClick={go} disabled={pending}>
-          {pending ? "Moving…" : "Do it"}
+    <Sheet
+      title="Okay… this might actually happen."
+      intro={
+        <>
+          <strong>{title}</strong> moves to ALIGN, where it gets a date, a place and a headcount.{" "}
+          {people.length === 1 ? "The one person" : `All ${people.length} people`} who said they&apos;re in come with it.
+        </>
+      }
+      trigger={(open) => (
+        <button className="btn btn-lit make-real" type="button" onClick={open}>
+          Make this real
         </button>
-        <button className="btn" type="button" onClick={() => setConfirming(false)}>
-          Not yet
-        </button>
-      </div>
-    </div>
+      )}
+    >
+      {(close) => (
+        <div className="field" style={{ gap: "1.25rem" }}>
+          <ul className="make-real-faces">
+            {people.map((p) => (
+              <li key={p.id}>
+                <Avatar url={p.url} name={p.name} size={40} />
+                <span>{firstName(p.name)}</span>
+              </li>
+            ))}
+          </ul>
+          {error && <p className="form-error" role="alert">{error}</p>}
+          <div className="sheet-actions">
+            <button className="btn btn-ghost" type="button" onClick={close}>Not yet</button>
+            <button className="btn btn-lit" type="button" onClick={go} disabled={pending}>
+              {pending ? "Moving it…" : "Do it"}
+            </button>
+          </div>
+        </div>
+      )}
+    </Sheet>
   );
 }

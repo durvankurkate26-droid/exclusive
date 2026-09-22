@@ -8,6 +8,8 @@ export type TeaSummary = Tea & {
   author: Profile | null;
   messageCount: number;
   voices: Profile[];
+  /** The most recent line, for the preview. */
+  last: { content: string; author: string; at: string } | null;
 };
 
 export type TeaMessageWithAuthor = TeaMessage & {
@@ -39,6 +41,7 @@ export async function listTeas(groupId: string): Promise<{
     author: (row as unknown as { profiles: Profile | null }).profiles ?? null,
     messageCount: 0,
     voices: [] as Profile[],
+    last: null as TeaSummary["last"],
   }));
 
   if (teas.length === 0) return { teas, avatars: new Map() };
@@ -46,15 +49,22 @@ export async function listTeas(groupId: string): Promise<{
   const ids = teas.map((tea) => tea.id);
   const { data: messages } = await supabase
     .from("tea_messages")
-    .select("tea_id, user_id, profiles:user_id(*)")
-    .in("tea_id", ids);
+    .select("tea_id, user_id, content, created_at, profiles:user_id(*)")
+    .in("tea_id", ids)
+    .order("created_at", { ascending: true });
 
   const counts = new Map<string, number>();
+  const lasts = new Map<string, TeaSummary["last"]>();
   const voices = new Map<string, Map<string, Profile>>();
 
   for (const row of messages ?? []) {
     counts.set(row.tea_id, (counts.get(row.tea_id) ?? 0) + 1);
     const profile = (row as unknown as { profiles: Profile | null }).profiles;
+    lasts.set(row.tea_id, {
+      content: row.content,
+      author: profile?.display_name.split(" ")[0] ?? "someone",
+      at: row.created_at,
+    });
     if (!profile) continue;
     const perTea = voices.get(row.tea_id) ?? new Map<string, Profile>();
     perTea.set(profile.id, profile);
@@ -64,6 +74,7 @@ export async function listTeas(groupId: string): Promise<{
   for (const tea of teas) {
     tea.messageCount = counts.get(tea.id) ?? 0;
     tea.voices = [...(voices.get(tea.id)?.values() ?? [])];
+    tea.last = lasts.get(tea.id) ?? null;
   }
 
   const everyone = [

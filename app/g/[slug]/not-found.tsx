@@ -1,28 +1,17 @@
 import Link from "next/link";
 
+/** Inside a group: a tea, plan or memory that isn't there (or isn't yours to see). */
 export default function GroupNotFound() {
   return (
-    <div className="auth-screen">
-      <div className="auth-ambient" aria-hidden="true" />
-      <main className="auth-main">
-        <div className="auth-intro">
-          <p className="auth-kicker">↳ NOTHING HERE</p>
-          <h1 className="auth-title">
-            WRONG
-            <br />
-            <span>DOOR.</span>
-          </h1>
-          <p className="auth-sub">
-            This group doesn&apos;t exist, or you&apos;re not in it. Those look the same
-            from out here — on purpose.
-          </p>
-        </div>
-        <div className="auth-card">
-          <Link className="auth-submit entry-choice-primary" href="/app">
-            Back to your groups ↗
-          </Link>
-        </div>
-      </main>
+    <div className="empty">
+      <p className="empty-line">
+        Wrong door.
+        <span>Nothing here.</span>
+      </p>
+      <p className="empty-hint">
+        It was deleted, or it belongs to another group. Those look the same from out here — on purpose.
+      </p>
+      <Link className="btn" href="/app">Back to your groups</Link>
     </div>
   );
 }

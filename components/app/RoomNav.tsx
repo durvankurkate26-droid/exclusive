@@ -2,57 +2,61 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { ROOMS, roomFromPath, roomHref } from "@/lib/constants/rooms";
+import { RoomGlyph } from "./Icons";
 
 /**
  * The room rail.
  *
- * Carries the landing page's navigation language forward — mono, letterspaced, no
- * chrome — rather than becoming a sidebar, because a left rail of icons is the exact
- * dashboard shape this product is trying not to be.
- *
- * The indicator is one absolutely-positioned element that slides between items rather
- * than a border on each. That is what makes moving between rooms read as one
- * continuous place: the mark travels, so the eye follows it instead of re-finding a
- * new underline. It is measured from the DOM because the labels are different widths
- * and a CSS-only version would need them equal, which would look like a tab bar.
+ * Words in display type, not icons in a sidebar — a left rail of glyphs is the exact
+ * dashboard shape this product refuses. Under the active room sits one lit filament
+ * that *travels* when you change rooms (measured from the DOM, because the words are
+ * different widths), and its colour crossfades to the new room's light on the way.
+ * One light moving along a rail is what makes six routes feel like one house.
  */
 export function RoomNav({ slug }: { slug: string }) {
   const pathname = usePathname();
   const active = roomFromPath(pathname, slug);
   const listRef = useRef<HTMLUListElement>(null);
-  const [indicator, setIndicator] = useState<{ left: number; width: number } | null>(
-    null,
-  );
+  const previous = useRef<string | null>(null);
+  const [box, setBox] = useState<{ x: number; w: number; travel: boolean } | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const list = listRef.current;
     if (!list) return;
 
-    const measure = () => {
+    // Only a room change travels. Re-measures (fonts arriving, a resize) snap, or the
+    // filament would visibly slide in from a stale position on every page load.
+    const travel = previous.current !== null && previous.current !== active;
+    previous.current = active;
+
+    const measure = (animate: boolean) => {
       const current = list.querySelector<HTMLElement>('[data-active="true"]');
-      if (!current) return setIndicator(null);
-      setIndicator({ left: current.offsetLeft, width: current.offsetWidth });
+      if (!current) return setBox(null);
+      const x = current.offsetLeft;
+      const w = current.offsetWidth;
+      // An unchanged re-measure keeps the current state, so it can't cancel a travel.
+      setBox((prev) => (prev && prev.x === x && prev.w === w ? prev : { x, w, travel: animate }));
     };
 
-    measure();
-    // Fonts load after first paint and change every label's width; without this the
-    // indicator sits under the wrong room until the next navigation.
-    document.fonts?.ready.then(measure).catch(() => {});
-    const observer = new ResizeObserver(measure);
+    measure(travel);
+    // Bebas arrives after first paint and changes every label's width.
+    document.fonts?.ready.then(() => measure(false)).catch(() => {});
+    const observer = new ResizeObserver(() => measure(false));
     observer.observe(list);
     return () => observer.disconnect();
-  }, [active, slug]);
+  }, [active]);
 
   return (
     <nav className="room-nav" aria-label="Rooms">
       <ul ref={listRef} className="room-nav-list">
-        {indicator && (
+        {box && (
           <li
             className="room-nav-indicator"
             aria-hidden="true"
-            style={{ left: indicator.left, width: indicator.width }}
+            data-travel={box.travel}
+            style={{ transform: `translateX(${box.x}px)`, width: box.w, left: 0 }}
           />
         )}
         {ROOMS.map((room) => {
@@ -62,9 +66,7 @@ export function RoomNav({ slug }: { slug: string }) {
               <Link
                 href={roomHref(slug, room)}
                 data-active={isActive}
-                data-room={room.key}
                 aria-current={isActive ? "page" : undefined}
-                style={{ "--accent": room.accent } as React.CSSProperties}
               >
                 {room.label}
               </Link>
@@ -79,16 +81,26 @@ export function RoomNav({ slug }: { slug: string }) {
 /**
  * Mobile dock.
  *
- * Bottom-anchored because the five rooms are the whole product and a hamburger would
- * bury them. Two-letter marks rather than icons: "ONE DAY" and "ALIGN" have no
- * self-evident glyph, and invented ones would need learning.
+ * Bottom-anchored and always visible, because the six rooms *are* the product and a
+ * hamburger would bury them. Glyph plus a short word — the glyph for thumbs that
+ * already know where things are, the word for everyone else. The lit pad slides
+ * between slots with the same drawer curve as the desktop filament.
  */
 export function MobileDock({ slug }: { slug: string }) {
   const pathname = usePathname();
   const active = roomFromPath(pathname, slug);
+  const index = Math.max(
+    0,
+    ROOMS.findIndex((room) => room.key === active),
+  );
 
   return (
     <nav className="room-dock" aria-label="Rooms">
+      <span
+        className="room-dock-indicator"
+        aria-hidden="true"
+        style={{ transform: `translateX(${index * 100}%)` }}
+      />
       {ROOMS.map((room) => {
         const isActive = room.key === active;
         return (
@@ -97,12 +109,12 @@ export function MobileDock({ slug }: { slug: string }) {
             href={roomHref(slug, room)}
             data-active={isActive}
             aria-current={isActive ? "page" : undefined}
-            style={{ "--accent": room.accent } as React.CSSProperties}
+            aria-label={room.label}
           >
-            <span className="room-dock-mark" aria-hidden="true">
-              {room.mark}
+            <RoomGlyph room={room.key} className="room-dock-glyph" />
+            <span className="room-dock-label" aria-hidden="true">
+              {room.short}
             </span>
-            <span className="room-dock-label">{room.label}</span>
           </Link>
         );
       })}

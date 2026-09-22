@@ -1,78 +1,103 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { gsap } from "gsap";
 import { captureToVault, lockPlan, unlockPlan } from "@/lib/actions/rooms";
-import { shortDate } from "@/lib/format";
+import { Lock } from "@/components/app/Icons";
+import { toast } from "@/components/app/Toast";
 
 /**
- * The end of the argument.
+ * The end of the argument — ALIGN's signature moment.
  *
- * The button states, in words, exactly what it is about to freeze — the winning date,
- * the winning place, the winning number — before you press it. A "Confirm" that does
- * not show you what it is confirming is how a group ends up locked into a Tuesday
- * nobody voted for.
- *
- * It refuses when a date or a place is missing, and says which. That refusal is the
- * feature: a locked plan reading "date: TBD" is the exact ambiguity this room exists
- * to delete.
+ * A bar that states, in words, exactly what it is about to freeze. Pressing it runs
+ * one short GSAP timeline over every element on the page still marked as unresolved
+ * (`[data-offset]`): they rotate and slide from their slightly-crooked positions to
+ * exactly straight, the whole composition settles, and only then does the verdict
+ * land. Misaligned → precise, in about 700ms. The server write runs in parallel, so
+ * the animation never makes anybody wait; if the write fails, the page snaps back.
  */
-export function LockPlan({
+export function LockBar({
   planId,
   slug,
   date,
-  location,
+  place,
   budget,
+  going,
   missing,
 }: {
   planId: string;
   slug: string;
-  date: string | null;
-  location: string | null;
+  date: { iso: string; label: string } | null;
+  place: string | null;
   budget: string | null;
+  going: number;
   missing: string[];
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
+  const lock = () => {
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const crooked = document.querySelectorAll<HTMLElement>("[data-offset]");
+    const tl = gsap.timeline();
+
+    if (!reduce && crooked.length) {
+      tl.to(crooked, {
+        rotation: 0,
+        x: 0,
+        y: 0,
+        duration: 0.55,
+        ease: "expo.inOut",
+        stagger: 0.05,
+      }).to(
+        ".lockbar",
+        { scale: 1.02, duration: 0.18, ease: "power2.out", yoyo: true, repeat: 1 },
+        "-=0.2",
+      );
+    }
+
+    startTransition(async () => {
+      // Let the page finish straightening before the write lands and swaps in the
+      // locked view — the settle *is* the confirmation. Capped at 800ms so a paused
+      // ticker (background tab) can never hold the write hostage.
+      if (!reduce && crooked.length) {
+        await Promise.race([tl.then(() => undefined), new Promise((resolve) => setTimeout(resolve, 800))]);
+      }
+      const result = await lockPlan(planId, slug, date?.iso ?? null, place, budget);
+      if (result.error) {
+        tl.reverse();
+        setError(result.error);
+        toast(result.error, "error");
+        return;
+      }
+      toast(<strong>IT&apos;S HAPPENING.</strong>);
+    });
+  };
+
   if (missing.length > 0) {
     return (
-      <div className="lock lock-blocked">
-        <p className="lock-line">
-          Can&apos;t lock this yet — still no{" "}
-          <strong>{missing.join(" and no ")}</strong>.
+      <div className="lockbar" data-ready="false">
+        <p className="lockbar-line">
+          Can&apos;t lock it yet — nobody has suggested {missing.length === 2 ? "a date or a place" : missing[0] === "date" ? "a date" : "a place"}.
         </p>
       </div>
     );
   }
 
   return (
-    <div className="lock">
-      <p className="lock-line">
-        Locking this fixes it as{" "}
-        <strong>{date ? shortDate(date) : "—"}</strong> at{" "}
-        <strong>{location}</strong>
-        {budget ? (
-          <>
-            , <strong>{budget}</strong>
-          </>
-        ) : null}
-        .
+    <div className="lockbar" data-ready="true">
+      <p className="lockbar-summary">
+        <span className="display">{date?.label}</span>
+        <span className="display">{place}</span>
+        {budget && <span className="display">{budget}</span>}
+        <span className="meta">{going} in</span>
       </p>
-      <button
-        className="btn btn-primary"
-        type="button"
-        disabled={pending}
-        onClick={() =>
-          startTransition(async () => {
-            const result = await lockPlan(planId, slug, date, location, budget);
-            setError(result.error ?? null);
-          })
-        }
-      >
-        {pending ? "Locking…" : "Lock it in ↗"}
+      <button className="btn btn-lit lockbar-btn" type="button" onClick={lock} disabled={pending}>
+        <Lock width={16} height={16} />
+        {pending ? "Locking…" : "Lock it"}
       </button>
       {error && (
-        <p className="inline-form-error" role="alert">
+        <p className="form-error" role="alert">
           {error}
         </p>
       )}
@@ -80,20 +105,19 @@ export function LockPlan({
   );
 }
 
-/**
- * Locked does not mean permanent. Plans move, and a group that cannot reopen one will
- * just abandon it and start a second plan for the same night.
- */
+/** Locked is not permanent. Plans move; a group that cannot reopen one just abandons it. */
 export function UnlockPlan({ planId, slug }: { planId: string; slug: string }) {
   const [pending, startTransition] = useTransition();
   return (
     <button
-      className="btn"
+      className="btn btn-ghost btn-sm"
       type="button"
       disabled={pending}
       onClick={() =>
         startTransition(async () => {
-          await unlockPlan(planId, slug);
+          const result = await unlockPlan(planId, slug);
+          if (result.error) toast(result.error, "error");
+          else toast("Reopened. Back to arguing.");
         })
       }
     >
@@ -102,34 +126,23 @@ export function UnlockPlan({ planId, slug }: { planId: string; slug: string }) {
   );
 }
 
-/**
- * ALIGN -> VAULT. The plan happened; it becomes a memory seeded with everyone who
- * said they were coming, so nobody has to rebuild the guest list from photographs.
- */
+/** ALIGN → VAULT: the plan happened, so it becomes a memory seeded with who went. */
 export function CaptureToVault({ planId, slug }: { planId: string; slug: string }) {
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
 
   return (
-    <>
-      <button
-        className="btn btn-room"
-        type="button"
-        disabled={pending}
-        onClick={() =>
-          startTransition(async () => {
-            const result = await captureToVault(planId, slug);
-            if (result?.error) setError(result.error);
-          })
-        }
-      >
-        {pending ? "Saving…" : "This happened — put it in the Vault ↗"}
-      </button>
-      {error && (
-        <p className="inline-form-error" role="alert">
-          {error}
-        </p>
-      )}
-    </>
+    <button
+      className="btn btn-lit"
+      type="button"
+      disabled={pending}
+      onClick={() =>
+        startTransition(async () => {
+          const result = await captureToVault(planId, slug);
+          if (result?.error) toast(result.error, "error");
+        })
+      }
+    >
+      {pending ? "Opening the vault…" : "It happened — keep it"}
+    </button>
   );
 }

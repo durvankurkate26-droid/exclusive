@@ -3,24 +3,28 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { requireGroup } from "@/lib/data/session";
 import { getTea } from "@/lib/data/tea";
-import { ROOM_BY_KEY } from "@/lib/constants/rooms";
+import { resolveAvatars } from "@/lib/data/media";
+import { ArrowLeft } from "@/components/app/Icons";
 import { TeaRoom, type ClientMessage } from "@/components/tea/TeaRoom";
-import { SpillTea } from "@/components/tea/SpillTea";
+import { TeaStatusControls } from "@/components/tea/SpillTea";
 import { timeAgo } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Tea · EXCLUSIVE" };
 export const dynamic = "force-dynamic";
 
-const room = ROOM_BY_KEY.tea;
-
+/**
+ * One conversation. A slim sticky header (title, who started it, the status
+ * controls), then the conversation owning the page, then the composer pinned to the
+ * bottom above the dock.
+ */
 export default async function TeaThread({ params }: PageProps<"/g/[slug]/tea/[teaId]">) {
   const { slug, teaId } = await params;
   const { group, profile } = await requireGroup(slug);
   const { tea, messages, avatars } = await getTea(teaId);
 
-  // A tea in another group is invisible to RLS, so "no row" and "wrong group" are the
-  // same outcome here — which is what we want it to look like from outside.
   if (!tea || tea.group_id !== group.id) notFound();
+
+  const mine = await resolveAvatars([profile]);
 
   const clientMessages: ClientMessage[] = messages.map((message) => ({
     id: message.id,
@@ -28,45 +32,34 @@ export default async function TeaThread({ params }: PageProps<"/g/[slug]/tea/[te
     content: message.content,
     created_at: message.created_at,
     author: message.author
-      ? {
-          id: message.author.id,
-          name: message.author.display_name,
-          url: avatars.get(message.author.id) ?? null,
-        }
+      ? { id: message.author.id, name: message.author.display_name, url: avatars.get(message.author.id) ?? null }
       : null,
     reactions: message.reactions,
   }));
 
   return (
-    <div className="room room-thread" style={{ ["--room" as string]: room.accent }}>
-      <header className="thread-head">
-        <Link className="thread-back" href={`/g/${slug}/tea`}>
-          ← all tea
+    <div className="tea-thread" data-status={tea.status}>
+      <header className="tea-thread-head">
+        <Link className="back" href={`/g/${slug}/tea`}>
+          <ArrowLeft /> All tea
         </Link>
-        <div className="thread-title-row">
-          <div>
-            <p className="room-kicker">
-              TEA · <span>{tea.status}</span>
-            </p>
-            <h1 className="thread-title">{tea.title}</h1>
-            {tea.context && <p className="thread-context">{tea.context}</p>}
-            <p className="thread-meta">
-              started by {tea.author?.display_name ?? "someone"} ·{" "}
-              {timeAgo(tea.created_at)}
+        <div className="tea-thread-row">
+          <div className="tea-thread-text">
+            <h1 className="display tea-thread-title">{tea.title}</h1>
+            <p className="tea-thread-meta">
+              {tea.context && <span className="tea-thread-context">{tea.context} · </span>}
+              {tea.author?.display_name ?? "someone"} started this {timeAgo(tea.created_at)}
+              {tea.status !== "brewing" && <span className="tea-thread-state"> · {tea.status}</span>}
             </p>
           </div>
-          <SpillTea teaId={tea.id} slug={slug} status={tea.status} />
+          <TeaStatusControls teaId={tea.id} slug={slug} status={tea.status} />
         </div>
       </header>
 
       <TeaRoom
         teaId={tea.id}
         initialMessages={clientMessages}
-        me={{
-          id: profile.id,
-          name: profile.display_name,
-          url: avatars.get(profile.id) ?? null,
-        }}
+        me={{ id: profile.id, name: profile.display_name, url: mine.get(profile.id) ?? null }}
         canPost={tea.status === "brewing"}
       />
     </div>

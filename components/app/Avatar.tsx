@@ -67,8 +67,13 @@ export function AvatarStack({
 
   return (
     <span className="avatar-stack" style={{ ["--stack-size" as string]: `${size}px` }}>
-      {shown.map((person) => (
-        <span key={person.id} className="avatar-stack-item" title={person.name}>
+      {shown.map((person, index) => (
+        <span
+          key={person.id}
+          className="avatar-stack-item"
+          title={person.name}
+          style={{ ["--i" as string]: index }}
+        >
           <Avatar url={person.url} name={person.name} size={size} />
         </span>
       ))}

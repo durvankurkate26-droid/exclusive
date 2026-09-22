@@ -1,7 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
-import { deleteMemoryMedia, setCapsuleCover } from "@/lib/actions/vault";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import {
+  deleteMemoryMedia,
+  moveMedia,
+  setCapsuleCover,
+  setMediaCaption,
+} from "@/lib/actions/vault";
+import { ArrowLeft, Chevron, Close } from "@/components/app/Icons";
+import { toast } from "@/components/app/Toast";
 
 export type GalleryItem = {
   id: string;
@@ -10,21 +17,34 @@ export type GalleryItem = {
   caption: string | null;
   isMine: boolean;
   isCover: boolean;
+  wide: boolean;
 };
 
 /**
- * The contact sheet, and the viewer over it.
+ * The photo essay.
  *
- * The sheet is deliberately not a uniform grid of squares. Photographs from a night
- * out are a mix of portrait and landscape, and cropping them all to the same tile is
- * what makes a gallery feel like file management — so every fourth frame is given
- * more room and the rest flow around it. The rhythm is index-based, so it is stable
- * between renders rather than reshuffling on every navigation.
+ * Not a grid of equal tiles: a repeating editorial rhythm (a wide frame, a tall one
+ * beside a small pair, a full-bleed breath) so a capsule reads like a spread in a
+ * magazine about your own weekend. Landscape photos are allowed to take the wide
+ * slots when they have them. Captions sit under their image, small, like they were
+ * written in the margin.
  *
- * The viewer is an overlay, not a route. VAULT keeps the app shell — that is the
- * brief's hard requirement — and pushing a full-screen photo route would replace the
- * navigation for as long as somebody is looking at a picture.
+ * Opening a photo expands it into a viewer (native <dialog>, so focus and Escape are
+ * handled) where anyone can caption it, make it the cover, or nudge its order, and
+ * the uploader can remove it.
  */
+const RHYTHM = ["hero", "tall", "sq", "sq", "wide", "sq", "tall", "sq"] as const;
+
+/** Small capsules get their own compositions — a rhythm needs enough beats to read. */
+function slotFor(i: number, count: number, wide: boolean): string {
+  if (count === 1) return "hero";
+  if (count === 2) return "half";
+  if (count === 3) return i === 0 ? "hero" : "half";
+  if (count === 4) return i === 0 ? "hero" : "third";
+  const slot = RHYTHM[i % RHYTHM.length];
+  return slot === "wide" && !wide ? "sq" : slot;
+}
+
 export function Gallery({
   items,
   capsuleId,
@@ -34,154 +54,159 @@ export function Gallery({
   capsuleId: string;
   slug: string;
 }) {
-  const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const [index, setIndex] = useState<number | null>(null);
   const [pending, startTransition] = useTransition();
+  const [caption, setCaption] = useState("");
+  const dialogRef = useRef<HTMLDialogElement>(null);
 
-  const close = useCallback(() => setOpenIndex(null), []);
+  const open = index === null ? null : items[index];
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (index !== null && !dialog.open) dialog.showModal();
+    if (index === null && dialog.open) dialog.close();
+  }, [index]);
+
+  useEffect(() => {
+    setCaption(open?.caption ?? "");
+  }, [open?.id, open?.caption]);
 
   const step = useCallback(
     (delta: number) =>
-      setOpenIndex((current) => {
+      setIndex((current) => {
         if (current === null) return null;
         const next = current + delta;
-        if (next < 0 || next >= items.length) return current;
-        return next;
+        return next < 0 || next >= items.length ? current : next;
       }),
     [items.length],
   );
 
-  useEffect(() => {
-    if (openIndex === null) return;
-
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") close();
-      if (event.key === "ArrowRight") step(1);
-      if (event.key === "ArrowLeft") step(-1);
-    };
-
-    document.addEventListener("keydown", onKey);
-    // The page behind must not scroll while the viewer is up, or dismissing it drops
-    // you somewhere other than where you opened it from.
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = previous;
-    };
-  }, [openIndex, close, step]);
+  const run = (fn: () => Promise<{ error?: string; message?: string }>, done?: string) =>
+    startTransition(async () => {
+      const result = await fn();
+      if (result.error) toast(result.error, "error");
+      else if (done) toast(done);
+    });
 
   if (items.length === 0) return null;
 
-  const open = openIndex === null ? null : items[openIndex];
-
   return (
     <>
-      <div className="sheet">
-        {items.map((item, index) => (
-          <figure key={item.id} className="frame" data-size={index % 5}>
-            <button
-              type="button"
-              className="frame-open"
-              onClick={() => setOpenIndex(index)}
-              aria-label={item.caption ?? `Photograph ${index + 1}`}
-            >
-              {item.url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={item.url} alt={item.caption ?? ""} loading="lazy" decoding="async" />
-              ) : (
-                <span className="frame-missing">couldn&apos;t load</span>
-              )}
-            </button>
-            {item.isCover && (
-              <figcaption className="frame-cover-flag" aria-label="Cover image">
-                COVER
-              </figcaption>
-            )}
-          </figure>
-        ))}
+      <div className="essay">
+        {items.map((item, i) => {
+          const size = slotFor(i, items.length, item.wide);
+          return (
+            <figure key={item.id} className="essay-frame" data-slot={size} style={{ ["--i" as string]: i }}>
+              <button
+                type="button"
+                className="essay-open"
+                onClick={() => setIndex(i)}
+                aria-label={item.caption ? `Open photo: ${item.caption}` : `Open photo ${i + 1} of ${items.length}`}
+              >
+                {item.url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={item.url} alt={item.caption ?? ""} loading={i < 3 ? "eager" : "lazy"} decoding="async" />
+                ) : (
+                  <span className="essay-missing">couldn&apos;t load this one</span>
+                )}
+                {item.isCover && <span className="essay-cover">cover</span>}
+              </button>
+              {item.caption && <figcaption>{item.caption}</figcaption>}
+            </figure>
+          );
+        })}
       </div>
 
-      {open && (
-        <div
-          className="viewer"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Photograph"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) close();
-          }}
-        >
-          <div className="viewer-stage">
-            {open.url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={open.url} alt={open.caption ?? ""} />
-            ) : (
-              <p className="frame-missing">This one couldn&apos;t load.</p>
-            )}
-          </div>
-
-          <div className="viewer-bar">
-            <span className="viewer-count">
-              {(openIndex ?? 0) + 1} / {items.length}
-            </span>
-
-            <div className="viewer-actions">
-              <button
-                className="btn"
-                type="button"
-                onClick={() => step(-1)}
-                disabled={openIndex === 0}
-              >
-                ←
-              </button>
-              <button
-                className="btn"
-                type="button"
-                onClick={() => step(1)}
-                disabled={openIndex === items.length - 1}
-              >
-                →
-              </button>
-
-              {!open.isCover && (
-                <button
-                  className="btn btn-room"
-                  type="button"
-                  disabled={pending}
-                  onClick={() =>
-                    startTransition(async () => {
-                      await setCapsuleCover(capsuleId, slug, open.storagePath);
-                    })
-                  }
-                >
-                  Make this the cover
-                </button>
+      <dialog
+        ref={dialogRef}
+        className="viewer"
+        aria-label="Photograph"
+        onClose={() => setIndex(null)}
+        onKeyDown={(event) => {
+          if ((event.target as HTMLElement).tagName === "INPUT") return;
+          if (event.key === "ArrowRight") step(1);
+          if (event.key === "ArrowLeft") step(-1);
+        }}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) setIndex(null);
+        }}
+      >
+        {open && (
+          <>
+            <div className="viewer-stage" onClick={(e) => e.target === e.currentTarget && setIndex(null)}>
+              {open.url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img key={open.id} src={open.url} alt={open.caption ?? ""} />
+              ) : (
+                <p className="essay-missing">This one couldn&apos;t load.</p>
               )}
-
-              {open.isMine && (
-                <button
-                  className="btn viewer-delete"
-                  type="button"
-                  disabled={pending}
-                  onClick={() =>
-                    startTransition(async () => {
-                      await deleteMemoryMedia(open.id, capsuleId, slug);
-                      close();
-                    })
-                  }
-                >
-                  Delete
-                </button>
-              )}
-
-              <button className="btn" type="button" onClick={close}>
-                Close
+              <button className="viewer-nav viewer-prev" type="button" onClick={() => step(-1)} disabled={index === 0} aria-label="Previous photo">
+                <ArrowLeft />
+              </button>
+              <button className="viewer-nav viewer-next" type="button" onClick={() => step(1)} disabled={index === items.length - 1} aria-label="Next photo">
+                <Chevron />
               </button>
             </div>
-          </div>
-        </div>
-      )}
+
+            <div className="viewer-bar">
+              <form
+                className="viewer-caption"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  run(() => setMediaCaption(open.id, capsuleId, slug, caption), "Captioned.");
+                }}
+              >
+                <label className="sr-only" htmlFor="viewer-caption">Caption</label>
+                <input
+                  id="viewer-caption"
+                  className="input"
+                  value={caption}
+                  onChange={(event) => setCaption(event.target.value)}
+                  placeholder="Say what was happening…"
+                  maxLength={200}
+                />
+                {caption !== (open.caption ?? "") && (
+                  <button className="btn btn-sm" type="submit" disabled={pending}>Save</button>
+                )}
+              </form>
+
+              <div className="viewer-actions">
+                <span className="meta">{(index ?? 0) + 1} / {items.length}</span>
+                <button className="btn btn-ghost btn-sm" type="button" disabled={pending || index === 0} onClick={() => { run(() => moveMedia(open.id, capsuleId, slug, -1)); step(-1); }}>
+                  Earlier
+                </button>
+                <button className="btn btn-ghost btn-sm" type="button" disabled={pending || index === items.length - 1} onClick={() => { run(() => moveMedia(open.id, capsuleId, slug, 1)); step(1); }}>
+                  Later
+                </button>
+                {!open.isCover && (
+                  <button className="btn btn-sm" type="button" disabled={pending} onClick={() => run(() => setCapsuleCover(capsuleId, slug, open.storagePath), "That's the cover now.")}>
+                    Make it the cover
+                  </button>
+                )}
+                {open.isMine && (
+                  <button
+                    className="btn btn-danger btn-sm"
+                    type="button"
+                    disabled={pending}
+                    onClick={() => {
+                      if (!window.confirm("Delete this photo for everyone? There's no undo.")) return;
+                      run(() => deleteMemoryMedia(open.id, capsuleId, slug), "Deleted.");
+                      setIndex(null);
+                    }}
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <button className="sheet-close viewer-close" type="button" onClick={() => setIndex(null)} aria-label="Close">
+              <Close />
+            </button>
+          </>
+        )}
+      </dialog>
     </>
   );
 }

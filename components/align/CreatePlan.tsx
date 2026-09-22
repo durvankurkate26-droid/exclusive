@@ -1,61 +1,70 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { createPlan, type FormState } from "@/lib/actions/rooms";
+import { Sheet } from "@/components/app/Sheet";
+import { Plus } from "@/components/app/Icons";
 
 function Submit() {
   const { pending } = useFormStatus();
   return (
-    <button className="btn btn-primary" type="submit" disabled={pending}>
-      {pending ? "Opening…" : "Start figuring it out ↗"}
+    <button className="btn btn-lit" type="submit" disabled={pending}>
+      {pending ? "Opening…" : "Start figuring it out"}
     </button>
   );
 }
 
 /**
- * Starting a plan from nothing.
- *
- * Only a title. Every other field a planning tool would ask for here — date, place,
- * budget — is deliberately absent, because those are the things the group has not
- * agreed on yet. Asking the person who opens the plan to fill them in makes them the
- * decision-maker, and ALIGN exists precisely because nobody wants to be that person.
+ * Starting a plan from nothing: only a name. Date, place and budget are exactly the
+ * things the group has not agreed on yet — asking the opener to fill them in makes
+ * them the decision-maker, which is the job ALIGN exists so nobody has to do.
  */
-export function CreatePlan({ groupId, slug }: { groupId: string; slug: string }) {
-  const [open, setOpen] = useState(false);
+export function CreatePlan({
+  groupId,
+  slug,
+  defaultOpen,
+  label = "Start a plan",
+}: {
+  groupId: string;
+  slug: string;
+  defaultOpen?: boolean;
+  label?: string;
+}) {
   const [state, action] = useActionState<FormState, FormData>(createPlan, {});
 
-  if (!open) {
-    return (
-      <button className="btn btn-primary" type="button" onClick={() => setOpen(true)}>
-        New plan ↗
-      </button>
-    );
-  }
-
   return (
-    <form className="inline-form" action={action}>
-      <input type="hidden" name="group_id" value={groupId} />
-      <input type="hidden" name="slug" value={slug} />
-      <input
-        name="title"
-        placeholder="what are we trying to make happen"
-        maxLength={120}
-        required
-        autoFocus
-        aria-label="What are we planning"
-      />
-      <div className="inline-form-actions">
-        <Submit />
-        <button className="btn" type="button" onClick={() => setOpen(false)}>
-          Never mind
+    <Sheet
+      title="What are we trying to make happen?"
+      intro="Just name it. Dates, places and who's coming get sorted inside."
+      defaultOpen={defaultOpen}
+      trigger={(open) => (
+        <button className="btn btn-lit" type="button" onClick={open}>
+          <Plus width={16} height={16} /> {label}
         </button>
-      </div>
-      {state.error && (
-        <p className="inline-form-error" role="alert">
-          {state.error}
-        </p>
       )}
-    </form>
+    >
+      {(close) => (
+        <form action={action} className="field" style={{ gap: "1.25rem" }}>
+          <input type="hidden" name="group_id" value={groupId} />
+          <input type="hidden" name="slug" value={slug} />
+          <label className="sr-only" htmlFor="plan-title">Plan name</label>
+          <input
+            id="plan-title"
+            className="input input-title"
+            name="title"
+            placeholder="Sunday lunch, the long one"
+            maxLength={120}
+            required
+            autoFocus
+          />
+          {state.error && <p className="form-error" role="alert">{state.error}</p>}
+          <div className="sheet-actions">
+            <button className="btn btn-ghost" type="button" onClick={close}>Never mind</button>
+            <Submit />
+          </div>
+        </form>
+      )}
+    </Sheet>
   );
 }

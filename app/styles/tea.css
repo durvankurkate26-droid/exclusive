@@ -1,0 +1,448 @@
+/* ===========================================================================
+   TEA — late-night, private, slightly dangerous.
+
+   The room dims: the key light drops to a low magenta glow, type gets closer, and
+   the conversation owns the space. No bubbles; words in a column, yours set apart.
+   =========================================================================== */
+
+.app-shell[data-room="tea"] .app-atmos-key {
+  background: radial-gradient(34% 30% at 12% 0%, color-mix(in srgb, var(--pink) 20%, transparent), transparent 70%);
+}
+
+.tea { display: grid; gap: clamp(2rem, 5vw, 3.5rem); }
+
+.tea-intro { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 1rem; }
+.tea-title { font-size: clamp(4.5rem, 14vw, 10rem); line-height: 0.8; }
+.tea-title span { color: var(--pink); }
+.tea-drop { min-height: 3rem; padding: 0 1.5rem; font-size: 1rem; }
+
+/* ---------------------------------------------------------------- the hot one */
+
+.tea-hot {
+  position: relative;
+  display: grid;
+  gap: 1rem;
+  padding: clamp(1.5rem, 4vw, 3rem) 0 clamp(1.5rem, 4vw, 2.5rem);
+  border-top: 1px solid color-mix(in srgb, var(--pink) 50%, transparent);
+}
+
+.tea-hot::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0 -5% -20% -5%;
+  background: radial-gradient(50% 60% at 20% 30%, color-mix(in srgb, var(--pink) 10%, transparent), transparent 70%);
+  content: "";
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+.tea-hot:hover::before { opacity: 1; }
+
+.tea-hot-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--pink);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.1em;
+}
+
+.tea-hot-status i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--pink);
+  box-shadow: 0 0 10px var(--pink);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .tea-hot-status i { animation: breathe 2.4s ease-in-out infinite; }
+}
+
+@keyframes breathe { 50% { opacity: 0.35; box-shadow: 0 0 2px var(--pink); } }
+
+.tea-hot-title { max-width: 14ch; font-size: clamp(3.2rem, 9vw, 7.5rem); line-height: 0.85; }
+.tea-hot-context { max-width: 50ch; color: var(--fg-3); font-size: 1rem; }
+
+.tea-hot-last {
+  max-width: 44ch;
+  color: var(--fg);
+  font-size: clamp(1.1rem, 2vw, 1.4rem);
+  line-height: 1.4;
+  text-wrap: pretty;
+}
+
+.tea-hot-last b { margin-right: 0.35rem; color: var(--pink); font-weight: 600; }
+.tea-hot-foot { display: flex; align-items: center; gap: 0.8rem; }
+
+/* ---------------------------------------------------------------- the rest */
+
+.tea-list { display: grid; margin: 0; padding: 0; list-style: none; }
+
+.tea-row {
+  display: grid;
+  gap: 0.35rem 2rem;
+  padding: 1.1rem 0;
+  border-top: 1px solid var(--line);
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "title meta" "last meta";
+  transition: transform 0.3s var(--ease-out);
+}
+
+.tea-row:hover { transform: translateX(0.5rem); }
+.tea-row-title { grid-area: title; display: flex; align-items: center; gap: 0.6rem; font-size: clamp(1.6rem, 3vw, 2.2rem); }
+.tea-row-last { grid-area: last; overflow: hidden; color: var(--fg-3); font-size: 0.9rem; text-overflow: ellipsis; white-space: nowrap; }
+.tea-row-last b { color: var(--fg-2); font-weight: 600; }
+.tea-row-meta { grid-area: meta; display: flex; align-items: center; gap: 0.7rem; }
+
+@media (max-width: 600px) {
+  .tea-row { grid-template-columns: 1fr; grid-template-areas: "title" "last" "meta"; }
+}
+
+.tea-unread-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--pink);
+  box-shadow: 0 0 8px var(--pink);
+}
+
+.tea-old ul { margin: 0; padding: 0; list-style: none; }
+.tea-old a {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.35rem 1rem;
+  padding: 0.8rem 0;
+  border-top: 1px solid var(--line);
+  color: var(--fg-3);
+  transition: color 0.2s ease;
+}
+.tea-old a:hover { color: var(--fg); }
+
+/* ---------------------------------------------------------------- thread */
+
+.tea-thread { display: grid; max-width: 52rem; margin: 0 auto; }
+
+.tea-thread-head {
+  position: sticky;
+  z-index: 10;
+  top: var(--bar-h);
+  margin: 0 calc(var(--gutter) * -1);
+  padding: 0.9rem var(--gutter) 1rem;
+  background: linear-gradient(180deg, var(--ink-1) 70%, transparent);
+}
+
+.tea-thread-head .back { margin-bottom: 0.5rem; }
+.tea-thread-row { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 0.75rem 1.5rem; }
+.tea-thread-text { display: grid; gap: 0.4rem; min-width: 0; }
+.tea-thread-title { font-size: clamp(2.2rem, 5vw, 3.4rem); }
+.tea-thread-meta { margin: 0; color: var(--fg-3); font-size: 0.8125rem; }
+.tea-thread-context { color: var(--fg-2); }
+.tea-thread-state { color: var(--pink); }
+.tea-status { display: flex; gap: 0.4rem; }
+
+.tea-room { display: grid; gap: 0.5rem; padding-bottom: 7rem; }
+
+.tea-presence {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.25rem 0 1rem;
+  color: var(--fg-3);
+  font-size: 0.8125rem;
+}
+
+.tea-presence-dot { width: 7px; height: 7px; border-radius: 50%; background: #7dffc8; box-shadow: 0 0 8px #7dffc8; }
+.tea-presence-dot[data-live="false"] { background: #ffd66b; box-shadow: 0 0 8px #ffd66b; }
+
+.tea-stream { display: grid; }
+
+.tea-nothing { margin: 3rem 0; font-family: var(--font-display); font-size: clamp(2rem, 5vw, 3rem); line-height: 1; }
+.tea-nothing span { display: block; color: var(--fg-3); }
+
+.tea-day {
+  margin: 2rem 0 1rem;
+  color: var(--fg-4);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.14em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.tea-unread {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.5rem 0 0.75rem;
+  color: var(--pink);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.tea-unread::before,
+.tea-unread::after { height: 1px; flex: 1; background: color-mix(in srgb, var(--pink) 50%, transparent); content: ""; }
+
+/* ---------------------------------------------------------------- a message */
+
+.tea-message {
+  position: relative;
+  max-width: min(38rem, 88%);
+  margin-top: 1.1rem;
+  padding: 0 0 0.2rem;
+  outline: none;
+}
+
+.tea-message[data-run="true"] { margin-top: 0.3rem; }
+
+/* Yours: to the right, narrower, and lit from the inside. */
+.tea-message[data-mine="true"] {
+  justify-self: end;
+  max-width: min(30rem, 80%);
+  padding: 0.7rem 1rem 0.75rem;
+  border-radius: 18px 18px 4px 18px;
+  background: color-mix(in srgb, var(--pink) 13%, rgba(255, 255, 255, 0.02));
+}
+
+.tea-message[data-mine="true"][data-run="true"] { border-radius: 18px 4px 4px 18px; }
+.tea-message[data-mine="true"] .tea-message-head { justify-content: flex-end; }
+.tea-message[data-pending="true"] { opacity: 0.55; }
+
+.tea-message-head { display: flex; align-items: center; gap: 0.55rem; margin-bottom: 0.35rem; }
+.tea-author { font-size: 0.875rem; font-weight: 600; }
+.tea-message[data-mine="true"] .tea-author { color: var(--fg-3); font-weight: 500; }
+.tea-time { color: var(--fg-4); font-family: var(--font-mono); font-size: 0.625rem; }
+
+.tea-text {
+  margin: 0;
+  color: var(--fg);
+  font-size: 1rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.tea-message:not([data-mine="true"]) .tea-text { padding-left: 2.3rem; }
+
+/* Arrivals: someone else's words slide in; yours are already there. */
+@media (prefers-reduced-motion: no-preference) {
+  .tea-message[data-fresh="true"] { animation: arrive 0.45s var(--ease-drawer); }
+  .tea-message[data-pending="true"] { animation: send 0.3s var(--ease-out); }
+}
+
+@keyframes arrive { from { opacity: 0; transform: translateY(12px); } }
+@keyframes send { from { opacity: 0; transform: translateY(8px) scale(0.98); } }
+
+/* ---------------------------------------------------------------- spilled */
+
+.tea-message[data-spilled="true"] {
+  justify-self: stretch;
+  max-width: none;
+  margin: 2rem 0 0.75rem;
+  padding: 1.5rem 0 1.5rem 3.2rem;
+  border-radius: 0;
+  background: radial-gradient(60% 100% at 0% 50%, color-mix(in srgb, var(--pink) 14%, transparent), transparent 75%);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--pink) 35%, transparent), inset 0 -1px 0 color-mix(in srgb, var(--pink) 35%, transparent);
+}
+
+/* A spilled line is a quote: a big magenta mark, not a coloured stripe. */
+.tea-message[data-spilled="true"]::before {
+  position: absolute;
+  top: 0.9rem;
+  left: 0.2rem;
+  color: var(--pink);
+  content: "C";
+  font-family: var(--font-display);
+  font-size: 4.5rem;
+  line-height: 1;
+}
+
+.tea-message[data-spilled="true"] .tea-text {
+  padding-left: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.9rem, 4.5vw, 3rem);
+  letter-spacing: 0.01em;
+  line-height: 1;
+}
+
+.tea-spilled-by {
+  margin: 0 0 0.6rem;
+  color: var(--pink);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* Replies within a few minutes of a spill hang off it. */
+.tea-message[data-echo="true"]:not([data-mine="true"]) { padding-left: 1.25rem; box-shadow: -1px 0 0 color-mix(in srgb, var(--pink) 30%, transparent); }
+.tea-message[data-echo="true"][data-mine="true"] { box-shadow: -1px 0 0 color-mix(in srgb, var(--pink) 30%, transparent); }
+
+/* ---------------------------------------------------------------- reactions */
+
+.tea-reactions { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.45rem; }
+.tea-message:not([data-mine="true"]) .tea-reactions { padding-left: 2.3rem; }
+
+.tea-reaction {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 1.9rem;
+  padding: 0 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--fg-2);
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: transform 0.12s var(--ease-out), border-color 0.2s ease, background 0.2s ease;
+}
+
+.tea-reaction b { font-family: var(--font-mono); font-size: 0.6875rem; font-weight: 400; }
+.tea-reaction:active { transform: scale(0.9); }
+.tea-reaction[aria-pressed="true"] { border-color: color-mix(in srgb, var(--pink) 60%, transparent); background: color-mix(in srgb, var(--pink) 14%, transparent); color: var(--fg); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .tea-reaction { animation: pop 0.3s var(--ease-out); }
+}
+
+@keyframes pop { 0% { transform: scale(0.6); } 60% { transform: scale(1.12); } }
+
+/* The tool strip appears on hover / focus (and tap, which focuses the message). */
+.tea-tools {
+  position: absolute;
+  z-index: 3;
+  top: -1.1rem;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.2rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #1a1523;
+  box-shadow: 0 10px 24px -8px rgba(0, 0, 0, 0.8);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px) scale(0.96);
+  transition: opacity 0.15s ease, transform 0.2s var(--ease-out);
+}
+
+.tea-message[data-mine="true"] .tea-tools { right: auto; left: 0; }
+
+.tea-message:hover .tea-tools,
+.tea-message:focus-within .tea-tools,
+.tea-message:focus .tea-tools { opacity: 1; pointer-events: auto; transform: none; }
+
+.tea-tools button {
+  display: grid;
+  min-width: 2.1rem;
+  height: 2.1rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+  font-size: 1rem;
+  place-items: center;
+  transition: transform 0.12s var(--ease-out), background 0.15s ease;
+}
+
+.tea-tools button:hover { background: rgba(255, 255, 255, 0.08); transform: scale(1.15); }
+.tea-tools button:active { transform: scale(0.9); }
+
+.tea-tools .tea-spill-btn {
+  padding: 0 0.7rem;
+  margin-left: 0.15rem;
+  color: var(--pink);
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  letter-spacing: 0.06em;
+}
+
+.tea-tools .tea-spill-btn:hover { transform: none; background: color-mix(in srgb, var(--pink) 16%, transparent); }
+
+/* ---------------------------------------------------------------- typing */
+
+.tea-typing { display: inline-flex; align-items: center; gap: 0.6rem; margin: 1rem 0 0; color: var(--fg-3); font-size: 0.8125rem; }
+.tea-typing-dots { display: inline-flex; gap: 3px; }
+.tea-typing-dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--pink); opacity: 0.4; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .tea-typing-dots i { animation: dot 1.2s ease-in-out infinite; }
+  .tea-typing-dots i:nth-child(2) { animation-delay: 0.15s; }
+  .tea-typing-dots i:nth-child(3) { animation-delay: 0.3s; }
+}
+
+@keyframes dot { 30% { opacity: 1; transform: translateY(-3px); } }
+
+/* ---------------------------------------------------------------- composer */
+
+.tea-composer {
+  position: fixed;
+  z-index: 30;
+  bottom: calc(var(--dock-h) + 0.9rem);
+  left: 50%;
+  display: flex;
+  width: min(52rem, calc(100vw - var(--gutter) * 2));
+  align-items: flex-end;
+  gap: 0.5rem;
+  padding: 0.45rem 0.45rem 0.45rem 1.1rem;
+  border: 1px solid color-mix(in srgb, var(--pink) 30%, var(--line));
+  border-radius: 24px;
+  background: color-mix(in srgb, #150f1c 94%, transparent);
+  box-shadow: 0 20px 50px -16px rgba(0, 0, 0, 0.9);
+  transform: translateX(-50%);
+  backdrop-filter: blur(14px);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.tea-composer:focus-within {
+  border-color: color-mix(in srgb, var(--pink) 60%, transparent);
+  box-shadow: 0 20px 50px -16px rgba(0, 0, 0, 0.9), 0 0 0 4px color-mix(in srgb, var(--pink) 10%, transparent);
+}
+
+.tea-composer textarea {
+  flex: 1;
+  min-height: 2.5rem;
+  max-height: 10rem;
+  padding: 0.6rem 0;
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  line-height: 1.4;
+  outline: none;
+  resize: none;
+  field-sizing: content;
+}
+
+.tea-composer textarea::placeholder { color: var(--fg-4); }
+.app-shell .tea-composer textarea:focus-visible { outline: none; }
+
+.tea-send {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: none;
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--pink) 80%, white);
+  color: #0b0913;
+  cursor: pointer;
+  place-items: center;
+  transition: transform 0.12s var(--ease-out), opacity 0.2s ease;
+}
+
+.tea-send svg { width: 1.1rem; height: 1.1rem; }
+.tea-send:active { transform: scale(0.92); }
+.tea-send:disabled { cursor: default; opacity: 0.3; }
+
+.tea-closed { margin: 2rem 0; color: var(--fg-3); text-align: center; }

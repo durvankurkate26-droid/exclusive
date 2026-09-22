@@ -1,144 +1,102 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { requireGroup } from "@/lib/data/session";
-import { listCreations } from "@/lib/data/create";
-import {
-  CREATE_ROLE_LABEL,
-  CREATE_STATUS_LABEL,
-  referenceHost,
-} from "@/lib/constants/create";
-import { ROOM_BY_KEY } from "@/lib/constants/rooms";
-import { RoomHeader, EmptyState } from "@/components/app/RoomHeader";
-import { Avatar } from "@/components/app/Avatar";
+import { listCreations, type CreationSummary } from "@/lib/data/create";
+import { AvatarStack } from "@/components/app/Avatar";
+import { firstName, toPeople } from "@/components/app/People";
 import { AddCreation } from "@/components/create/AddCreation";
-import { JoinCreation } from "@/components/create/CrewControls";
-import { timeAgo } from "@/lib/format";
+import { Reference } from "@/components/create/Reference";
+import { CREATE_ROLE_LABEL, CREATE_STATUS_LABEL } from "@/lib/constants/create";
+import { tilt } from "@/lib/art";
 
 export const metadata: Metadata = { title: "Create · EXCLUSIVE" };
 export const dynamic = "force-dynamic";
 
-const room = ROOM_BY_KEY.create;
-
 /**
- * CREATE — the studio wall.
+ * CREATE — friends making things together.
  *
- * Things pinned up, not tickets in a queue. The difference is legible in three
- * decisions: each card carries its reference as a visible source line (this started
- * as a link somebody sent, and the wall should say so), the crew are faces with jobs
- * written under them rather than assignee avatars, and the status is one small line
- * of plain speech — "shot it", "editing" — instead of a column position.
- *
- * Nothing here has a due date, because none of these have one until somebody takes
- * them to ALIGN.
+ * A studio wall. Every make is its reference — the actual frame of the reel, or a
+ * slip with the source written on it — pinned up at a size that depends on where it
+ * is in the wall, with the crew and their roles scribbled underneath. Where it is
+ * up to is one quiet word, not a Kanban column.
  */
-export default async function CreatePage({ params }: PageProps<"/g/[slug]/create">) {
+export default async function CreatePage({ params, searchParams }: PageProps<"/g/[slug]/create">) {
   const { slug } = await params;
+  const { new: wantsNew } = await searchParams;
   const { group, profile } = await requireGroup(slug);
   const { live, shipped, avatars } = await listCreations(group.id, profile.id);
+  const base = `/g/${slug}/create`;
+
+  const crewLine = (c: CreationSummary) => {
+    const withRoles = c.crew.filter((m) => m.status === "in" && m.role);
+    if (withRoles.length === 0) return null;
+    return withRoles
+      .slice(0, 3)
+      .map((m) => `${CREATE_ROLE_LABEL[m.role!]}: ${firstName(m.profile.display_name)}`)
+      .join(" · ");
+  };
 
   return (
-    <div className="room room-create" style={{ ["--room" as string]: room.accent }}>
-      <RoomHeader room={room} count={live.length ? `${live.length} IN PROGRESS` : undefined}>
-        <AddCreation groupId={group.id} slug={slug} />
-      </RoomHeader>
+    <div className="studio">
+      <header className="room-intro">
+        <h1 className="display studio-title">
+          The <span>studio</span>
+        </h1>
+        <AddCreation groupId={group.id} slug={slug} defaultOpen={wantsNew === "1"} />
+      </header>
 
-      {live.length === 0 && shipped.length === 0 ? (
-        <EmptyState line={room.empty.line} hint={room.empty.hint}>
-          <AddCreation groupId={group.id} slug={slug} />
-        </EmptyState>
-      ) : (
-        <>
-          {live.length > 0 && (
-            <div className="studio-wall">
-              {live.map((creation, index) => {
-                const host = referenceHost(creation.reference_url);
-                const onIt = creation.crew.filter((member) => member.status === "in");
+      {live.length === 0 && shipped.length === 0 && (
+        <div className="empty">
+          <p className="empty-line">Someone needs to send a reel.</p>
+          <p className="empty-hint">Paste a reference, say what you want to make, see who&apos;s down.</p>
+        </div>
+      )}
 
-                return (
-                  <article
-                    key={creation.id}
-                    className="pinned"
-                    data-tilt={index % 4}
-                  >
-                    {/* The tape is what makes it pinned paper rather than a card. */}
-                    <span className="pinned-tape" aria-hidden="true" />
+      {live.length > 0 && (
+        <section className="studio-wall" aria-label="Being made">
+          {live.map((c, i) => {
+            const crew = c.crew.filter((m) => m.status === "in");
+            return (
+              <Link
+                key={c.id}
+                href={`${base}/${c.id}`}
+                className="make"
+                data-size={i === 0 ? "lead" : i % 3 === 2 ? "tall" : "base"}
+                style={{ ["--t" as string]: `${i === 0 ? 0 : tilt(c.id, 1.4)}deg` }}
+              >
+                <Reference id={c.id} url={c.reference_url} title={c.title} size={i === 0 ? "large" : "base"} />
+                <span className="make-text">
+                  <span className="make-status">{CREATE_STATUS_LABEL[c.status]}</span>
+                  <span className="display make-title">{c.title}</span>
+                  {i === 0 && c.description && <span className="make-desc">{c.description}</span>}
+                  <span className="make-crew">
+                    {crew.length > 0 && <AvatarStack people={toPeople(crew.map((m) => m.profile), avatars)} max={5} size={24} />}
+                    <span className="make-roles">{crewLine(c) ?? (crew.length === 0 ? "nobody's down yet" : `${crew.length} down`)}</span>
+                  </span>
+                </span>
+              </Link>
+            );
+          })}
+        </section>
+      )}
 
-                    <p className="pinned-source">
-                      {host ? (
-                        <a
-                          href={creation.reference_url ?? "#"}
-                          target="_blank"
-                          rel="noreferrer noopener"
-                        >
-                          ref · {host} ↗
-                        </a>
-                      ) : (
-                        <span>no reference</span>
-                      )}
-                    </p>
-
-                    <Link href={`/g/${slug}/create/${creation.id}`} className="pinned-link">
-                      <h3 className="pinned-title">{creation.title}</h3>
-                    </Link>
-
-                    {creation.description && (
-                      <p className="pinned-desc">{creation.description}</p>
-                    )}
-
-                    <p className="pinned-status">{CREATE_STATUS_LABEL[creation.status]}</p>
-
-                    {onIt.length > 0 && (
-                      <ul className="crew-strip">
-                        {onIt.slice(0, 5).map((member) => (
-                          <li key={member.profile.id}>
-                            <Avatar
-                              url={avatars.get(member.profile.id) ?? null}
-                              name={member.profile.display_name}
-                              size={28}
-                            />
-                            <span className="crew-name">
-                              {member.profile.display_name.split(" ")[0]}
-                            </span>
-                            <span className="crew-role">
-                              {member.role ? CREATE_ROLE_LABEL[member.role] : "in"}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-
-                    <div className="pinned-foot">
-                      <JoinCreation
-                        createId={creation.id}
-                        slug={slug}
-                        joined={creation.mine?.status === "in"}
-                      />
-                      <span className="pinned-time">{timeAgo(creation.updated_at)}</span>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          )}
-
-          {shipped.length > 0 && (
-            <section className="wall-section">
-              <h2 className="section-label">WE ACTUALLY MADE THESE</h2>
-              <ul className="promoted-list">
-                {shipped.map((creation) => (
-                  <li key={creation.id}>
-                    <Link href={`/g/${slug}/create/${creation.id}`}>
-                      <span className="promoted-title">{creation.title}</span>
-                      <span className="promoted-state">
-                        {CREATE_STATUS_LABEL[creation.status]}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-        </>
+      {shipped.length > 0 && (
+        <section className="studio-shipped" aria-labelledby="shipped-h">
+          <h2 className="section-title" id="shipped-h">
+            We actually made these <span className="meta">{shipped.length}</span>
+          </h2>
+          <ul>
+            {shipped.map((c) => (
+              <li key={c.id}>
+                <Link href={`${base}/${c.id}`} className="shipped">
+                  <Reference id={c.id} url={c.result_url ?? c.reference_url} title={c.title} />
+                  <span className="display">{c.title}</span>
+                  <span className="meta">{c.status === "posted" ? "posted" : "done"}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
     </div>
   );

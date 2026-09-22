@@ -329,3 +329,121 @@ export async function deleteCapsule(capsuleId: string, slug: string): Promise<vo
   revalidatePath(`/g/${slug}/vault`);
   redirect(`/g/${slug}/vault`);
 }
+
+/* ===========================================================================
+   Client-side uploads.
+
+   Files go straight from the browser to Storage (so the uploader can show real
+   byte-level progress — a Server Action body has none, and is capped at 1MB by
+   default anyway). This action then records the rows. It re-derives the capsule's
+   group and refuses any path outside `<group_id>/<capsule_id>/`, so the folder rule
+   the bucket policy enforces is checked again here before a row points at it.
+   =========================================================================== */
+
+export async function recordUploads(
+  capsuleId: string,
+  slug: string,
+  files: Array<{ path: string; width?: number; height?: number }>,
+): Promise<FormState> {
+  const user = await getUser();
+  if (!user) return { error: "Signed out." };
+  if (files.length === 0) return { error: "Nothing uploaded." };
+
+  const supabase = await createClient();
+  const { data: capsule } = await supabase
+    .from("memory_capsules")
+    .select("id, group_id")
+    .eq("id", capsuleId)
+    .maybeSingle();
+  if (!capsule) return { error: "That memory is gone." };
+
+  const prefix = `${capsule.group_id}/${capsule.id}/`;
+  if (files.some((file) => !file.path.startsWith(prefix) || file.path.includes(".."))) {
+    return { error: "Those files landed in the wrong place." };
+  }
+
+  const { data: last } = await supabase
+    .from("memory_media")
+    .select("sort_order")
+    .eq("capsule_id", capsuleId)
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  let order = (last?.sort_order ?? -1) + 1;
+  const { error } = await supabase.from("memory_media").insert(
+    files.map((file) => ({
+      capsule_id: capsuleId,
+      uploaded_by: user.id,
+      storage_path: file.path,
+      media_type: "image" as const,
+      width: file.width ?? null,
+      height: file.height ?? null,
+      sort_order: order++,
+    })),
+  );
+
+  if (error) {
+    await supabase.storage.from("vault-media").remove(files.map((f) => f.path));
+    return { error: error.message };
+  }
+
+  revalidatePath(`/g/${slug}/vault`);
+  revalidatePath(`/g/${slug}/vault/${capsuleId}`);
+  return { message: files.length === 1 ? "In the vault." : `${files.length} in the vault.` };
+}
+
+export async function setMediaCaption(
+  mediaId: string,
+  capsuleId: string,
+  slug: string,
+  caption: string,
+): Promise<FormState> {
+  const trimmed = caption.trim().slice(0, 200);
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("memory_media")
+    .update({ caption: trimmed || null })
+    .eq("id", mediaId);
+  if (error) return { error: error.message };
+  revalidatePath(`/g/${slug}/vault/${capsuleId}`);
+  return {};
+}
+
+/** Nudge a photograph one place earlier or later in the essay. */
+export async function moveMedia(
+  mediaId: string,
+  capsuleId: string,
+  slug: string,
+  direction: -1 | 1,
+): Promise<FormState> {
+  const supabase = await createClient();
+  const { data: items } = await supabase
+    .from("memory_media")
+    .select("id, sort_order")
+    .eq("capsule_id", capsuleId)
+    .order("sort_order")
+    .order("created_at");
+
+  const list = items ?? [];
+  const index = list.findIndex((item) => item.id === mediaId);
+  const swap = list[index + direction];
+  if (index < 0 || !swap) return {};
+
+  // Renumber densely so duplicate sort_orders from older uploads cannot make a swap a no-op.
+  const reordered = [...list];
+  [reordered[index], reordered[index + direction]] = [reordered[index + direction], reordered[index]];
+  const results = await Promise.all(
+    reordered.map((item, i) =>
+      item.sort_order === i
+        ? Promise.resolve({ error: null })
+        : supabase.from("memory_media").update({ sort_order: i }).eq("id", item.id),
+    ),
+  );
+  const failed = results.find((r) => r.error);
+  if (failed?.error) return { error: failed.error.message };
+
+  revalidatePath(`/g/${slug}/vault`);
+  revalidatePath(`/g/${slug}/vault/${capsuleId}`);
+  return {};
+}

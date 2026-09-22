@@ -105,6 +105,8 @@ export type CreateIdea = {
   description: string | null;
   reference_url: string | null;
   thumbnail_url: string | null;
+  /** Added in 0006. Optional in the type so the app degrades before the migration runs. */
+  result_url?: string | null;
   status: CreateStatus;
 } & Timestamps;
 
@@ -219,7 +221,7 @@ export type Database = {
       one_day_interest: TableDef<OneDayInterest, "interested">;
       create_ideas: TableDef<
         CreateIdea,
-        "description" | "reference_url" | "thumbnail_url" | "status"
+        "description" | "reference_url" | "thumbnail_url" | "status" | "result_url"
       >;
       create_members: TableDef<CreateMember, "role" | "participation_status">;
       plans: TableDef<

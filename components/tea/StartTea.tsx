@@ -1,66 +1,54 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { startTea, type FormState } from "@/lib/actions/tea";
+import { Sheet } from "@/components/app/Sheet";
 
 function Submit() {
   const { pending } = useFormStatus();
   return (
-    <button className="btn btn-primary" type="submit" disabled={pending}>
-      {pending ? "Pouring…" : "Drop the tea ↗"}
+    <button className="btn btn-lit" type="submit" disabled={pending}>
+      {pending ? "Pouring…" : "Drop it"}
     </button>
   );
 }
 
 /**
- * Two fields and a verb.
- *
- * The brief for this is "it should feel like *drop the tea*", so it is a title, an
- * optional line of context, and nothing else — no category picker, no visibility
- * toggle. Anything more turns a reflex into a form.
+ * Two fields and a verb. A title and one optional line of context — no categories,
+ * no visibility toggles. Anything more turns a reflex into a form.
  */
-export function StartTea({ groupId, slug }: { groupId: string; slug: string }) {
-  const [open, setOpen] = useState(false);
+export function StartTea({ groupId, slug, defaultOpen }: { groupId: string; slug: string; defaultOpen?: boolean }) {
   const [state, action] = useActionState<FormState, FormData>(startTea, {});
 
-  if (!open) {
-    return (
-      <button className="btn btn-primary" type="button" onClick={() => setOpen(true)}>
-        Start tea ↗
-      </button>
-    );
-  }
-
   return (
-    <form className="inline-form" action={action}>
-      <input type="hidden" name="group_id" value={groupId} />
-      <input type="hidden" name="slug" value={slug} />
-      <input
-        name="title"
-        placeholder="what happened"
-        maxLength={140}
-        required
-        autoFocus
-        aria-label="What happened"
-      />
-      <input
-        name="context"
-        placeholder="one line of context (optional)"
-        maxLength={280}
-        aria-label="Context"
-      />
-      <div className="inline-form-actions">
-        <Submit />
-        <button className="btn" type="button" onClick={() => setOpen(false)}>
-          Never mind
+    <Sheet
+      title="What happened?"
+      intro="Title it like you'd say it out loud. Details go in the conversation."
+      defaultOpen={defaultOpen}
+      trigger={(open) => (
+        <button className="btn btn-lit tea-drop" type="button" onClick={open}>
+          Drop the tea
         </button>
-      </div>
-      {state.error && (
-        <p className="inline-form-error" role="alert">
-          {state.error}
-        </p>
       )}
-    </form>
+    >
+      {(close) => (
+        <form action={action} className="field" style={{ gap: "1.25rem" }}>
+          <input type="hidden" name="group_id" value={groupId} />
+          <input type="hidden" name="slug" value={slug} />
+          <label className="sr-only" htmlFor="tea-title">What happened</label>
+          <input id="tea-title" className="input input-title" name="title" placeholder="yk what happened" maxLength={140} required autoFocus />
+          <div className="field">
+            <label className="field-label" htmlFor="tea-context">One line of context <span className="field-hint">optional</span></label>
+            <input id="tea-context" className="input" name="context" placeholder="The wedding one. You know the one." maxLength={280} />
+          </div>
+          {state.error && <p className="form-error" role="alert">{state.error}</p>}
+          <div className="sheet-actions">
+            <button className="btn btn-ghost" type="button" onClick={close}>Never mind</button>
+            <Submit />
+          </div>
+        </form>
+      )}
+    </Sheet>
   );
 }
